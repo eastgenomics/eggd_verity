@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import StringConstraints, ConfigDict, BeforeValidator
 from sqlalchemy import func
 from sqlmodel import Field, Relationship, SQLModel, UniqueConstraint, Session, select
-import pandas as pd 
+import pandas as pd
 from typing import ClassVar, Type, Annotated, get_args
 
 import logging
@@ -23,9 +23,6 @@ class Assay(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, description="Name of the assay (e.g., CEN, TWE)")
-    test_code: int | None = Field(
-        default=None, description="Internal lab code for the analysis"
-    )
     ref_genome: str | None = Field(
         default=None, description="Reference genome build (e.g., B37, B38)"
     )
@@ -78,6 +75,10 @@ class Sample(SQLModel, table=True):
     )
     qc_status: QCStatus = Field(
         default=QCStatus.NOTREPORTED, description="The final QC verdict of the sample"
+    )
+    batch: str = Field(default="", description="The Epic batch the sample belongs to")
+    testcode: int | None = Field(
+        default=None, description="The Epic test the sample was booked for"
     )
 
     run_id: int = Field(
@@ -201,15 +202,15 @@ class BaseMetrics(SQLModel):
         get_or_create_sample: callable,
     ) -> int:
         """Processes a DataFrame and bulk-creates metric instances in the database."""
-        
+
         if cls.has_existing_records(session, run):
             logging.warning(
                 f"Skipping {cls.__name__} - already processed for {run.run_folder}"
             )
             return 0
-        
+
         df = cls.custom_transform(df)
-        
+
         # This prevents pydantic validation errors for 'nan' values.
         df = df.where(pd.notna(df), None)
 

@@ -60,8 +60,6 @@ def find_report(project_id: str) -> pd.DataFrame:
         print(f"No 'multiqc_data.json' found in {project_name}")
         return
 
-    # print(f"Found {len(res)} matches {project_name}")
-
     res = [
         {
             "project_name": project_name,
