@@ -1,25 +1,9 @@
-from pathlib import Path
+from decouple import config
 
-from pydantic import ValidationError
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=BASE_DIR / ".env", env_file_encoding="utf-8"
-    )
-
-    USERNAME: str
-    PASSWORD: str
-    SECRET_KEY: str
-
-
-try:
-    settings = Settings()
-    print("Settings loaded successfully from .env file.")
-except ValidationError as e:
-    print("Error loading settings. Make sure your .env file is correctly set up.")
-    raise e
+class Settings:
+    USERNAME: str = config("USERNAME")
+    PASSWORD: str = config("PASSWORD")
+    SECRET_KEY: str = config("VERITY_SECRET_KEY")
+    SLACK_WEBHOOK_URL: str = config("SLACK_WEBHOOK_URL", default="")
+    
+settings = Settings()   
