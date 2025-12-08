@@ -1,6 +1,11 @@
 import dash
+import dash_auth
 import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, callback, dcc, html
+
+from app.config import settings
+
+VALID_USERNAME_PASSWORD_PAIRS = {settings.USERNAME: settings.PASSWORD}
 
 app = Dash(
     __name__,
@@ -9,6 +14,9 @@ app = Dash(
     suppress_callback_exceptions=True,
 )
 server = app.server
+server.secret_key = settings.SECRET_KEY
+
+auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
 
 navbar = dbc.NavbarSimple(
     children=[
