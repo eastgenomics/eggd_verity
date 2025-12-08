@@ -13,8 +13,8 @@ server = app.server
 navbar = dbc.NavbarSimple(
     children=[
         dbc.NavItem(dbc.NavLink("Home", href="/")),
-        dbc.NavItem(dbc.NavLink("Metric Trends", href="/trends")),
-        dbc.NavItem(dbc.NavLink("Raincloud Plot", href="/plot")),
+        dbc.NavItem(dbc.NavLink("Trends", href="/trends")),
+        dbc.NavItem(dbc.NavLink("Plot", href="/plot")),
         dbc.NavItem(dbc.NavLink("Correlation", href="/correlation")),
         dbc.NavItem(dbc.NavLink("Explore Data", href="/explore")),
     ],
