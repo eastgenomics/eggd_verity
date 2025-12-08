@@ -3,11 +3,13 @@
 - Unarchive them if neccessary
 - Saves result in a tsv file
 """
-from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
-import pandas as pd
-import dxpy
 
+from pathlib import Path
+
+import dxpy
+import pandas as pd
+
+from data.utils import get_multiqc_reports
 
 OUTPUT_DIR = Path("data/VERITY_DATASET/source")
 
@@ -42,38 +44,6 @@ def get_prod_projects(pattern: str) -> list:
     return res.project_id.values
 
 
-def find_report(project_id: str) -> pd.DataFrame:
-    """finds multiqc reports in given project"""
-    res = list(
-        dxpy.find_data_objects(
-            name="multiqc_data.json",
-            project=project_id,
-            recurse=True,
-            classname="file",
-            describe={"fields": {"name": True, "archivalState": True}},
-        )
-    )
-
-    project_name = dxpy.DXProject(project_id).name
-
-    if not res:
-        print(f"No 'multiqc_data.json' found in {project_name}")
-        return
-
-    res = [
-        {
-            "project_name": project_name,
-            "project_id": x["project"],
-            "file_id": x["id"],
-            "file_name": x["describe"]["name"],
-            "archival_state": x["describe"]["archivalState"],
-        }
-        for x in res
-    ]
-
-    return pd.DataFrame(res)
-
-
 def main():
     """finds multiqc report in 002 projects."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -82,25 +52,13 @@ def main():
     prod_pattern = r"^002_.*_(TWE|CEN|MYE|TSO500|PCAN|HRD|FH|SNP|TSOE)$"
     project_ids = get_prod_projects(prod_pattern)
 
-    with ThreadPoolExecutor(max_workers=16) as executor:
-        df = pd.concat(
-            executor.map(find_report, project_ids),
-        )
+    df = get_multiqc_reports(project_ids)
 
-    print(df.archival_state.value_counts())
-    df.to_csv(outfile, sep="\t", index=False)
-
-    dfx = df[df["archival_state"].isin(["archived", "archival"])]
-    if dfx.empty:
-        print("No files to unarchive")
-        return
-    print(f"Unarchiving {len(dfx)} files...")
-
-    for _, row in dfx.iterrows():
-        dx_file = dxpy.DXFile(row["file_id"], row["project_id"])
-        dx_file.unarchive()
-
-    print("All Unarchive requests sent")
+    if df is not None:
+        print("\nArchival state of found files:")
+        print(df.archival_state.value_counts())
+        df.to_csv(outfile, sep="\t", index=False)
+        print(f"Successfully wrote details for {len(df)} live files to {outfile}")
 
 
 if __name__ == "__main__":
