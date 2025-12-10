@@ -37,14 +37,17 @@ controls = dbc.Card(
             id="metric-dropdown", placeholder="Select metric(s)...", multi=True
         ),
         dbc.Label("4. Number of Recent Runs", className="mt-2"),
+        html.Br(),
         dcc.Input(
             id="trends-num-runs-input",
             type="number",
             min=1,
-            placeholder="All runs (default)",
+            value=10,
+            
         ),
         html.Hr(),
         dbc.Label("5. Customise Plot", className="fw-bold mt-2"),
+        html.Br(),
         dbc.Label("Plot Type", className="mt-2"),
         dbc.RadioItems(
             id="plot-type-radio",
@@ -63,6 +66,7 @@ controls = dbc.Card(
         dcc.Slider(id="trends-marker-size-slider", min=2, max=20, step=1, value=6),
         html.Hr(),
         dbc.Label("6. Plot Options", className="fw-bold mt-2"),
+        html.Br(),
         dbc.Label("Y-Axis Transform", className="mt-2"),
         dbc.RadioItems(
             id="yaxis-transform-radio",

@@ -22,17 +22,17 @@ TOOL_MODEL_MAP = get_metric_models()
 
 controls = dbc.Card(
     [
-        dbc.Label("1. Select Assay(s)"),
+        dbc.Label("1. Select Assay(s)", className="fw-bold"),
         dcc.Dropdown(
             id="plot-assay-dropdown",
             placeholder="Select one or more assays...",
             multi=True,
         ),
-        dbc.Label("2. Select QC Tool", className="mt-2"),
+        dbc.Label("2. Select QC Tool", className="fw-bold mt-2"),
         dcc.Dropdown(id="plot-tool-dropdown", placeholder="Select a tool..."),
-        dbc.Label("3. Select Metric", className="mt-2"),
+        dbc.Label("3. Select Metric", className="fw-bold mt-2"),
         dcc.Dropdown(id="plot-metric-dropdown", placeholder="Select a metric..."),
-        dbc.Label("4. Number of Runs", className="mt-2"),
+        dbc.Label("4. Number of Runs", className="fw-bold mt-2"),
         dcc.Input(
             id="plot-num-runs-input",
             type="number",
@@ -41,16 +41,18 @@ controls = dbc.Card(
             value=10,
             placeholder="Enter number of runs...",
         ),
-        dbc.Label("5. Sample Name Filter (Regex)", className="mt-2"),
+        dbc.Label("5. Sample Name Filter (Regex)", className="fw-bold mt-2"),
         dcc.Input(
             id="plot-sample-filter-input",
             type="text",
             placeholder="Enter regex pattern...",
         ),
-        dbc.Label("6. Colour By", className="mt-2"),
+        html.Br(),
+        dbc.Label("6. Colour By", className="fw-bold mt-2"),
         dcc.Dropdown(id="plot-color-by-dropdown", placeholder="Select a category..."),
         html.Hr(),
         dbc.Label("7. Customise Plot Elements", className="fw-bold mt-2"),
+        html.Br(),
         dbc.Label("Violin Side", className="mt-2"),
         dbc.RadioItems(
             id="plot-violin-side-radio",
@@ -362,6 +364,7 @@ def update_raincloud_plot(
 
     df = pd.DataFrame(results, columns=df_cols)
     # Convert to date objects to remove the time component from the axis
+    df = df.sort_values("date", ascending=True)
     df["date"] = pd.to_datetime(df["date"]).dt.date
 
     # For run-level metrics, create a placeholder 'sample_name' column
@@ -378,7 +381,6 @@ def update_raincloud_plot(
                 "Invalid regex pattern. Please correct the sample name filter."
             )
 
-    df = df.sort_values("date", ascending=False)
     ordered_runs = df["run_folder"].unique()
 
     df = format_categorical_columns(df, color_by, None, grouping_args)
@@ -552,8 +554,9 @@ def close_offcanvas(_figure, is_open):
     """
     if not is_open or not _figure:
         return no_update
-    
+
     if _figure.get("layout", {}).get("paper_bgcolor") == "#fff3cd":
         return no_update
 
+    return False
     return False

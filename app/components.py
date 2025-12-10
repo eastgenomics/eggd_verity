@@ -67,10 +67,10 @@ def create_sample_filter_control():
             labelClassName="btn btn-outline-primary",
             labelCheckedClassName="active",
             options=[
-                {"label": "Control Samples Only", "value": "controls_only"},
                 {"label": "All Samples", "value": "all"},
+                {"label": "Control Samples Only", "value": "controls_only"},
             ],
-            value="controls_only",  # Default value
+            value="all",  # Default value
         ),
         className="radio-group mb-4 d-flex justify-content-center",
     )

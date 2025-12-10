@@ -35,6 +35,7 @@ def make_metric_selector_components(axis_prefix):
 controls = dbc.Card(
     [
         dbc.Label("1. Select Filters", className="fw-bold"),
+        html.Br(),
         dbc.Label("Assay(s)"),
         dcc.Dropdown(
             id="corr-assay-dropdown", placeholder="Select assays...", multi=True
@@ -48,10 +49,12 @@ controls = dbc.Card(
         html.Div(id="run-limit-warning", className="text-danger small mt-1"),
         html.Hr(),
         dbc.Label("2. Select Metrics", className="fw-bold"),
+        html.Br(),
         *make_metric_selector_components("x"),
         *make_metric_selector_components("y"),
         html.Hr(),
         dbc.Label("3. Customise Plot", className="fw-bold mt-2"),
+        html.Br(),
         dbc.Label("Colour By", className="mt-2"),
         dcc.Dropdown(id="corr-color-by-dropdown", placeholder="Select a category..."),
         dbc.Label("Symbol By", className="mt-2"),
@@ -60,6 +63,7 @@ controls = dbc.Card(
         dcc.Slider(id="corr-marker-size-slider", min=2, max=20, step=1, value=6),
         html.Hr(),
         dbc.Label("4. Analysis", className="fw-bold mt-2"),
+        html.Br(),
         dbc.Label("Trendline", className="mt-2"),
         dcc.Dropdown(
             id="corr-trendline-dropdown",
@@ -72,6 +76,7 @@ controls = dbc.Card(
         ),
         html.Hr(),
         dbc.Label("5. Axis Options", className="fw-bold mt-2"),
+        html.Br(),
         dbc.Label("X-Axis Transform", className="mt-2"),
         dbc.RadioItems(
             id="corr-xaxis-transform-radio",
