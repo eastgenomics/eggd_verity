@@ -1,19 +1,16 @@
-import re
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import dash
 import dash_bootstrap_components as dbc
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 from dash import Input, Output, State, callback, dcc, html, no_update
-from sqlmodel import select
 
 from app.components import create_warning_figure
 from app.db import get_session
-from app.plot_utils import format_categorical_columns, register_hover_callbacks
-from app.utils import get_metric_models, get_numeric_fields, get_plot_grouping_options
-from data.models.reports import Assay, Run, Sample
+from app.utils import register_hover_callbacks
+from data.plots.raincloud import create_raincloud_figure
+from data.queries.general import get_assay_names, get_available_tools
+from data.queries.raincloud import get_raincloud_data
+from data.utils.model_utils import get_metric_models, get_plot_grouping_options
 
 dash.register_page(__name__, path="/plot", name="Raincloud Plot")
 
@@ -135,14 +132,18 @@ def toggle_offcanvas(n1, is_open):
 def populate_assays(_):
     """Populates the assay dropdown with all available assay names."""
     with get_session() as session:
-        assays = session.exec(select(Assay.name).distinct()).all()
-        return sorted(assays)
+        return get_assay_names(session)
 
 
-@callback(Output("plot-tool-dropdown", "options"), Input("plot-tool-dropdown", "id"))
-def populate_tools(_):
-    """Populates the tool dropdown with all discovered metric models."""
-    return list(TOOL_MODEL_MAP.keys())
+@callback(
+    Output("plot-tool-dropdown", "options"), Input("plot-assay-dropdown", "value")
+)
+def populate_tools(assay_names):
+    """Populates the tool dropdown based on selected assays."""
+    if not assay_names:
+        return []
+    with get_session() as session:
+        return get_available_tools(session, assay_names, TOOL_MODEL_MAP)
 
 
 @callback(
@@ -153,7 +154,7 @@ def populate_metrics(tool_name):
     if not tool_name:
         return []
     model = TOOL_MODEL_MAP[tool_name]
-    fields = get_numeric_fields(model)
+    fields = model.numeric_fields
     # Convert snake_case to Title Case for display
     return [
         {"label": field.replace("_", " ").title(), "value": field} for field in fields
@@ -178,92 +179,6 @@ def populate_grouping_options(_):
                 }
             )
     return formatted_options
-
-
-def _create_violin_trace(df, metric_name, side, color_map, color_col):
-    """Creates violin traces for the plot."""
-    traces = []
-    for i, run in enumerate(df["run_folder"].unique()):
-        df_run = df[df["run_folder"] == run]
-        traces.append(
-            go.Violin(
-                x=df_run["run_folder"],
-                y=df_run[metric_name],
-                name=run,
-                side=side if side != "both" else None,
-                width=0.8,
-                line_color=(
-                    color_map.get(df_run[color_col].iloc[0])
-                    if color_col != "run_folder"
-                    else color_map.get(run)
-                ),
-                showlegend=False,
-            )
-        )
-    return traces
-
-
-def _create_box_trace(df, metric_name, side, color_map, color_col):
-    """Creates box plot traces, positioned correctly relative to the violin."""
-    traces = []
-    # Adjust offset based on violin side to keep it centered in the half-violin
-    offset_map = {"positive": 0.15, "negative": -0.15, "both": 0}
-    offset = offset_map.get(side, 0)
-
-    for i, run in enumerate(df["run_folder"].unique()):
-        df_run = df[df["run_folder"] == run]
-        traces.append(
-            go.Box(
-                x=df_run["run_folder"],
-                y=df_run[metric_name],
-                name=run,
-                marker_color=(
-                    color_map.get(df_run[color_col].iloc[0])
-                    if color_col != "run_folder"
-                    else color_map.get(run)
-                ),
-                boxpoints=False,
-                width=0.15,
-                offsetgroup=f"{run}_box",
-                x0=offset,
-                showlegend=False,
-                boxmean=True,
-            )
-        )
-    return traces
-
-
-def _create_strip_trace(df, metric_name, side, color_map, color_col):
-    """Creates strip plot (point) traces."""
-    traces = []
-    # Adjust point position based on violin side
-    pointpos_map = {"positive": -0.6, "negative": 0.6, "both": 0}
-    pointpos = pointpos_map.get(side, 0)
-
-    for i, run in enumerate(df["run_folder"].unique()):
-        df_run = df[df["run_folder"] == run]
-        traces.append(
-            go.Box(
-                x=df_run["run_folder"],
-                y=df_run[metric_name],
-                name=run,
-                boxpoints="all",
-                jitter=0.2,
-                pointpos=pointpos,
-                marker_color=(
-                    color_map.get(df_run[color_col].iloc[0])
-                    if color_col != "run_folder"
-                    else color_map.get(run)
-                ),
-                marker=dict(size=3, opacity=0.6),
-                line_width=0,
-                fillcolor="rgba(0,0,0,0)",
-                hoverinfo="y+name",
-                showlegend=False,
-                width=0.7,
-            )
-        )
-    return traces
 
 
 @callback(
@@ -297,152 +212,39 @@ def update_raincloud_plot(
 
     tool_model = TOOL_MODEL_MAP[tool_name]
 
-    is_run_level = tool_model.metric_level == "run"
-
-    # Columns to select from the database
-    columns_to_select = [
-        Run.date,
-        Run.run_folder.label("run_folder"),
-        getattr(tool_model, metric_name).label(metric_name),
-    ]
-    df_cols = ["date", "run_folder", metric_name]
-
-    if not is_run_level:
-        columns_to_select.append(Sample.name.label("sample_name"))
-        df_cols.append("sample_name")
-
-    # Add color_by column if selected
-    grouping_args = {"color": None}
-    if color_by:
-        model_name, field_name = color_by.split(".")
-        if model_name == "run":
-            model = Run
-        elif model_name == "sample":
-            model = Sample
-        elif model_name == "assay":
-            model = Assay
-        else:
-            model = None
-        if model:
-            unique_alias = f"{model_name}_{field_name}"
-            columns_to_select.append(getattr(model, field_name).label(unique_alias))
-            df_cols.append(unique_alias)
-            grouping_args["color"] = unique_alias
-
     with get_session() as session:
-        # Subquery to find the most recent N runs for the given assays
-        latest_runs_stmt = (
-            select(Run.id)
-            .join(Assay, Run.assay_id == Assay.id)
-            .where(Assay.name.in_(assay_names))
-            .order_by(Run.date.desc())  # Get the N most recent runs
-            .limit(num_runs)
-        ).alias("latest_runs")
-
-        if is_run_level:
-            statement = select(*columns_to_select).join(
-                tool_model, Run.id == tool_model.run_id
-            )
-        else:
-            statement = (
-                select(*columns_to_select)
-                .join(Sample, Run.id == Sample.run_id)
-                .join(tool_model, Sample.id == tool_model.sample_id)
-            )
-
-        # Common joins and filters for both run and sample level
-        statement = statement.join(Assay, Run.assay_id == Assay.id).join(
-            latest_runs_stmt, Run.id == latest_runs_stmt.c.id
+        df, grouping_args = get_raincloud_data(
+            session,
+            assay_names,
+            tool_model,
+            metric_name,
+            num_runs,
+            color_by,
         )
 
-        results = session.exec(statement).all()
-
-    if not results:
+    if df.empty:
         return create_warning_figure(
             f"No data found for the selected metrics in the selected assays."
         )
-
-    df = pd.DataFrame(results, columns=df_cols)
-    # Convert to date objects to remove the time component from the axis
-    df = df.sort_values("date", ascending=True)
-    df["date"] = pd.to_datetime(df["date"]).dt.date
-
-    # For run-level metrics, create a placeholder 'sample_name' column
-    # for consistent hover information.
-    if is_run_level:
-        df["sample_name"] = df["run_folder"]
 
     # Apply sample name filter if provided
     if sample_filter:
         try:
             df = df[df["sample_name"].str.contains(sample_filter, regex=True)]
-        except re.error:
+        except Exception:
             return create_warning_figure(
                 "Invalid regex pattern. Please correct the sample name filter."
             )
 
-    ordered_runs = df["run_folder"].unique()
-
-    df = format_categorical_columns(df, color_by, None, grouping_args)
-
-    # Determine the column to use for colouring
-    color_col = grouping_args["color"]
-    color_discrete_map = None
-
-    # Default to colouring by run_folder if no other option is chosen
-    if not color_col or color_col == "run_run_folder":
-        color_col = "run_folder"
-        unique_runs = df["run_folder"].unique()
-        color_discrete_map = {
-            run: color for run, color in zip(unique_runs, px.colors.qualitative.Plotly)
-        }
-    else:
-        # If coloring by another category, create a map for go.Figure
-        unique_colors = df[color_col].unique()
-        color_discrete_map = {
-            cat: color
-            for cat, color in zip(unique_colors, px.colors.qualitative.Plotly)
-        }
-        df["color"] = df[color_col].map(color_discrete_map)
-
-    fig = go.Figure()
-
-    # Add traces based on user selection
-    if "violin" in plot_components:
-        for trace in _create_violin_trace(
-            df, metric_name, violin_side, color_discrete_map, color_col
-        ):
-            fig.add_trace(trace)
-    if "box" in plot_components:
-        for trace in _create_box_trace(
-            df, metric_name, violin_side, color_discrete_map, color_col
-        ):
-            fig.add_trace(trace)
-    if "points" in plot_components:
-        for trace in _create_strip_trace(
-            df,
-            metric_name,
-            violin_side,
-            color_discrete_map,
-            color_col,
-        ):
-            fig.add_trace(trace)
-
-    metric_title = metric_name.replace("_", " ").title()
-    plot_title = f"{tool_name}: {metric_title} for the last {num_runs} run(s)"
-
-    fig.update_layout(
-        title=plot_title,
-        title_font=dict(size=20, family="Arial", color="black"),
-        violingap=0,
-        violinmode="overlay",
-        xaxis_tickangle=-45,
-        xaxis=dict(categoryorder="array", categoryarray=ordered_runs),
-        showlegend=True if grouping_args["color"] else False,
-        yaxis_title=metric_name.replace("_", " ").title(),
-        xaxis_title="Run",
+    return create_raincloud_figure(
+        df,
+        tool_name,
+        metric_name,
+        num_runs,
+        grouping_args["color"],
+        violin_side,
+        plot_components,
     )
-    return fig
 
 
 def layout(

@@ -11,9 +11,12 @@ from app.components import (
     create_warning_figure,
 )
 from app.db import get_session
-from app.plot_utils import format_categorical_columns, register_hover_callbacks
-from app.utils import get_metric_models, get_numeric_fields, get_plot_grouping_options
-from data.models.reports import Assay, Run, Sample
+from app.utils import register_hover_callbacks
+from data.models.reports import Assay, Run
+from data.plots.correlation import create_correlation_figure
+from data.queries.correlation import get_correlation_data
+from data.queries.general import get_assay_names, get_available_tools
+from data.utils.model_utils import get_metric_models, get_plot_grouping_options
 
 dash.register_page(__name__, path="/correlation", name="Correlation")
 
@@ -124,8 +127,7 @@ register_hover_callbacks("correlation")
 @callback(Output("corr-assay-dropdown", "options"), Input("corr-assay-dropdown", "id"))
 def populate_assays(_):
     with get_session() as session:
-        assays = session.exec(select(Assay.name).distinct()).all()
-        return sorted(assays)
+        return get_assay_names(session)
 
 
 @callback(
@@ -194,21 +196,29 @@ def limit_run_selection(selected_runs):
     return dash.no_update, "", True
 
 
+@callback(
+    Output("x-tool-dropdown", "options"),
+    Output("y-tool-dropdown", "options"),
+    Input("corr-assay-dropdown", "value"),
+)
+def populate_correlation_tools(assay_names):
+    """Populates both X and Y tool dropdowns based on selected assays."""
+    if not assay_names:
+        return [], []
+
+    sample_level_map = {
+        name: model
+        for name, model in TOOL_MODEL_MAP.items()
+        if model.metric_level == "sample"
+    }
+
+    with get_session() as session:
+        tools = get_available_tools(session, assay_names, sample_level_map)
+        return tools, tools
+
+
 # Populate and reset metric selectors for both X and Y axes
 for axis in ["x", "y"]:
-
-    @callback(
-        Output(f"{axis}-tool-dropdown", "options"),
-        Input(f"{axis}-tool-dropdown", "id"),
-    )
-    def populate_tools(_):
-        # Filter out run-level metrics for the correlation plot
-        sample_level_tools = [
-            name
-            for name, model in TOOL_MODEL_MAP.items()
-            if model.metric_level == "sample"
-        ]
-        return sample_level_tools
 
     @callback(
         Output(f"{axis}-metric-dropdown", "options"),
@@ -218,7 +228,7 @@ for axis in ["x", "y"]:
         if not tool_name:
             return []
         model = TOOL_MODEL_MAP[tool_name]
-        fields = get_numeric_fields(model)
+        fields = model.numeric_fields
         return [
             {"label": field.replace("_", " ").title(), "value": field}
             for field in fields
@@ -274,164 +284,33 @@ def update_correlation_plot(
     x_model = TOOL_MODEL_MAP[x_tool]
     y_model = TOOL_MODEL_MAP[y_tool]
 
-    x_metric_label = x_metric.replace("_", " ").title()
-    y_metric_label = y_metric.replace("_", " ").title()
-
-    # Build Query
-    # 1. Define all columns to be selected
-    cols_to_select = []
-    df_cols = []
-    grouping_args = {"color": None, "symbol": None}
-
-    # Add metric columns for X and Y axes
-    if x_model == y_model:
-        cols_to_select.extend(
-            [
-                getattr(x_model, x_metric).label("x"),
-                getattr(x_model, y_metric).label("y"),
-            ]
-        )
-    else:
-        cols_to_select.extend(
-            [
-                getattr(x_model, x_metric).label("x"),
-                getattr(y_model, y_metric).label("y"),
-            ]
-        )
-    df_cols.extend(["x", "y"])
-
-    # Process unique grouping factors to avoid duplicate columns in the query
-    unique_group_vals = {val for val in [color_by, symbol_by] if val}
-    for arg_val in unique_group_vals:
-        model_name, field_name = arg_val.split(".")
-        model = {"run": Run, "sample": Sample, "assay": Assay}.get(model_name)
-        if model:
-            unique_alias = f"{model_name}_{field_name}"
-            cols_to_select.append(getattr(model, field_name).label(unique_alias))
-            df_cols.append(unique_alias)
-
-    # Map the selected values back to the plotly arguments
-    if color_by:
-        grouping_args["color"] = f"{color_by.split('.')[0]}_{color_by.split('.')[1]}"
-    if symbol_by:
-        grouping_args["symbol"] = f"{symbol_by.split('.')[0]}_{symbol_by.split('.')[1]}"
-
-    # Add hover data columns
-    cols_to_select.extend(
-        [Sample.name.label("sample_name"), Run.run_folder.label("run_folder")]
-    )
-    df_cols.extend(["sample_name", "run_folder"])
-
-    # 2. Build the query statement with explicit FROM and JOINs
-    stmt = select(*cols_to_select).select_from(Sample)
-    stmt = stmt.join(Run, Sample.run_id == Run.id).join(Assay, Run.assay_id == Assay.id)
-    stmt = stmt.join(x_model, Sample.id == x_model.sample_id)
-    if x_model != y_model:
-        stmt = stmt.join(y_model, Sample.id == y_model.sample_id)
-
-    # 3. Add filters
-    stmt = stmt.where(Assay.name.in_(assay_names))
-    # Add run filter if any are selected
-    if run_folders:
-        stmt = stmt.where(Run.run_folder.in_(run_folders))
-    # Apply sample filter
-    if sample_filter == "controls_only":
-        stmt = stmt.where(Sample.is_control == True)
-
     with get_session() as session:
-        results = session.exec(stmt).all()
+        df, grouping_args = get_correlation_data(
+            session,
+            assay_names,
+            run_folders,
+            x_model,
+            x_metric,
+            y_model,
+            y_metric,
+            sample_filter,
+            color_by,
+            symbol_by,
+        )
 
-    if not results:
+    if df.empty:
         return create_warning_figure(
             "No data found for the selected combination of metrics."
         )
 
-    df = pd.DataFrame(results, columns=df_cols).dropna(subset=["x", "y"])
-
-    if df.empty:
-        return create_warning_figure(
-            "No overlapping samples found for the selected metrics."
-        )
-
-    df = format_categorical_columns(df, color_by, symbol_by, grouping_args)
-
-    # Apply transformations
-    # Filter for log scale first, as it reduces the dataset
-    if xaxis_transform == "log":
-        df = df[df["x"] > 0]
-    if yaxis_transform == "log":
-        df = df[df["y"] > 0]
-
-    if df.empty:
-        return create_warning_figure(
-            "No positive data points remain after applying log scale filter(s)."
-        )
-
-    # Apply standardisation
-    if xaxis_transform == "standardise":
-        mean_val, std_val = df["x"].mean(), df["x"].std()
-        if std_val > 0:
-            df["x"] = (df["x"] - mean_val) / std_val
-        else:
-            df["x"] = 0
-        x_metric_label = f"{x_metric_label} (Z-score)"
-
-    if yaxis_transform == "standardise":
-        mean_val, std_val = df["y"].mean(), df["y"].std()
-        if std_val > 0:
-            df["y"] = (df["y"] - mean_val) / std_val
-        else:
-            df["y"] = 0
-        y_metric_label = f"{y_metric_label} (Z-score)"
-
-    trendline_arg = trendline if trendline != "none" else None
-    fig = px.scatter(
+    return create_correlation_figure(
         df,
-        x="x",
-        y="y",
-        color=grouping_args["color"],
-        symbol=grouping_args["symbol"],
-        hover_name="sample_name",
-        custom_data=["run_folder"],
-        labels={"x": x_metric_label, "y": y_metric_label},
-        title=f"Correlation: {x_metric_label} vs. {y_metric_label}",
-        trendline=trendline_arg,
+        x_metric,
+        y_metric,
+        grouping_args["color"],
+        grouping_args["symbol"],
+        marker_size,
+        trendline,
+        xaxis_transform,
+        yaxis_transform,
     )
-
-    # Update hovertemplate to explicitly show custom data
-    fig.update_traces(
-        hovertemplate=(
-            f"<b>%{{hovertext}}</b><br><br>"
-            f"Run Folder: %{{customdata[0]}}<br>"
-            f"{x_metric_label}: %{{x:.3f}}<br>"
-            f"{y_metric_label}: %{{y:.3f}}"
-            f"<extra></extra>"
-        )
-    )
-
-    # Add R-squared to title if OLS trendline is used for the whole dataset
-    if trendline == "ols" and not grouping_args["color"]:
-        try:
-            results = px.get_trendline_results(fig)
-            r_squared = results.iloc[0]["px_fit_results"].rsquared
-            title = fig.layout.title.text
-            fig.update_layout(title=f"{title} (R² = {r_squared:.3f})")
-        except (IndexError, AttributeError):
-            # This can happen if the fit fails. Silently ignore.
-            pass
-
-    # Update axes types for log scale after plot creation
-    if xaxis_transform == "log":
-        fig.update_xaxes(type="log")
-    if yaxis_transform == "log":
-        fig.update_yaxes(type="log")
-
-    fig.update_traces(marker=dict(size=marker_size))
-    fig.update_layout(
-        height=700,
-        margin=dict(l=20, r=20, t=50, b=20),
-        legend_title_text="Group By",
-        title_font=dict(size=18, weight="bold"),
-    )
-
-    return fig

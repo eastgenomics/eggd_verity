@@ -51,6 +51,43 @@ class classproperty(property):
         return self.fget(owner_cls)
 
 
+def _get_categorical_fields(cls) -> list[str]:
+    """
+    Inspects a SQLModel and returns a sorted list of its categorical field names.
+    """
+    categorical_fields = []
+    exclude_fields = {
+        "id",
+        "sample_id",
+        "run_id",
+        "assay_id",
+        "source",
+        "filename",
+        "sample",
+        "name",
+        "library",
+        "rg",
+        "run_folder",
+        "date",
+        "sequencer_id",
+        "processed_at",
+    }
+
+    for field_name, model_field in cls.model_fields.items():
+        if field_name in exclude_fields:
+            continue
+
+        field_types = get_args(model_field.annotation) or (model_field.annotation,)
+
+        if any(t in (str, bool) for t in field_types) or any(
+            isinstance(t, type) and issubclass(t, (QCStatus, SexKaryotype))
+            for t in field_types
+        ):
+            categorical_fields.append(field_name)
+
+    return sorted(categorical_fields)
+
+
 class Assay(SQLModel, table=True):
     """Model for a bioinformatics assay/test type."""
 
@@ -66,6 +103,11 @@ class Assay(SQLModel, table=True):
     )
 
     runs: list["Run"] = Relationship(back_populates="assay")
+
+    @classmethod
+    @classproperty
+    def categorical_fields(cls) -> list[str]:
+        return _get_categorical_fields(cls)
 
 
 class Run(SQLModel, table=True):
@@ -108,6 +150,11 @@ class Run(SQLModel, table=True):
     interop_indexsummary_metrics: list["IndexSummary"] = Relationship(
         back_populates="run"
     )
+
+    @classmethod
+    @classproperty
+    def categorical_fields(cls) -> list[str]:
+        return _get_categorical_fields(cls)
 
 
 class Sample(SQLModel, table=True):
@@ -190,6 +237,11 @@ class Sample(SQLModel, table=True):
         back_populates="sample"
     )
     verifybamid_metrics: list["VerifyBamId"] = Relationship(back_populates="sample")
+
+    @classmethod
+    @classproperty
+    def categorical_fields(cls) -> list[str]:
+        return _get_categorical_fields(cls)
 
 
 ###################################################################################################
@@ -286,6 +338,27 @@ class BaseMetrics(SQLModel):
 
         cls._numeric_fields_cache = numeric_fields
         return numeric_fields
+
+    @classmethod
+    @classproperty
+    def display_name(cls) -> str:
+        """
+        Returns a user-friendly name for the tool.
+        e.g. "SamtoolsFlagstat" -> "Samtools Flagstat"
+        """
+        return re.sub(r"(?<!^)(?=[A-Z])", " ", cls.__name__)
+
+    @classmethod
+    @classproperty
+    def plotting_fields(cls) -> list[str]:
+        """Returns fields valid for Y-axis plotting. Defaults to numeric_fields."""
+        return cls.numeric_fields
+
+    @classmethod
+    @classproperty
+    def categorical_fields(cls) -> list[str]:
+        """Returns fields valid for grouping/coloring."""
+        return _get_categorical_fields(cls)
 
     @classmethod
     def coerce_numeric_columns(cls, df: pd.DataFrame) -> pd.DataFrame:

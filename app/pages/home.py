@@ -5,12 +5,11 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
 from dash import Input, Output, callback, dash_table, dcc, html
-from sqlalchemy import distinct, func
-from sqlmodel import select
 
 from app.db import get_session
 from data.models.choices import SexKaryotype
-from data.models.reports import Assay, Run, Sample
+from data.plots.summary import create_summary_chart
+from data.queries.summary import get_summary_stats
 
 dash.register_page(__name__, path="/", name="Home")
 
@@ -173,59 +172,19 @@ def update_home_page_summary(_):
     all summary statistics and data for the home page charts.
     """
     with get_session() as session:
-        statement = (
-            select(
-                Assay.name,
-                func.count(distinct(Run.run_folder)).label("run_count"),
-                func.count(distinct(Sample.name)).label("sample_count"),
-                func.min(Run.date).label("min_date"),
-                func.max(Run.date).label("max_date"),
-            )
-            .select_from(Assay)
-            .outerjoin(Run, Assay.id == Run.assay_id)
-            .outerjoin(Sample, Run.id == Sample.run_id)
-            .group_by(Assay.name)
-            .order_by(Assay.name)
-        )
-        results = session.exec(statement).all()
+        (
+            summary_results,
+            sequencer_results,
+            total_sequencer_results,
+            sex_results,
+        ) = get_summary_stats(session)
 
-        # Query for sequencer per assay
-        sequencer_stmt = (
-            select(
-                Assay.name,
-                Run.sequencer_id,
-                func.count(distinct(Run.run_folder)).label("run_count"),
-            )
-            .join(Assay, Run.assay_id == Assay.id)
-            .group_by(Assay.name, Run.sequencer_id)
-        )
-        sequencer_results = session.exec(sequencer_stmt).all()
-
-        # Query for total sequencer usage
-        total_sequencer_stmt = select(
-            Run.sequencer_id, func.count(distinct(Run.run_folder)).label("run_count")
-        ).group_by(Run.sequencer_id)
-        total_sequencer_results = session.exec(total_sequencer_stmt).all()
-
-        # Query for sex distribution per assay
-        sex_stmt = (
-            select(
-                Assay.name,
-                Sample.sex,
-                func.count(distinct(Sample.name)).label("sample_count"),
-            )
-            .join(Run, Assay.id == Run.assay_id)
-            .join(Sample, Run.id == Sample.run_id)
-            .group_by(Assay.name, Sample.sex)
-        )
-        sex_results = session.exec(sex_stmt).all()
-
-    if not results:
+    if not summary_results:
         no_data_fig = px.bar(title="No data found in the database.")
         return [], [], None, None, None, None
 
     df = pd.DataFrame(
-        results, columns=["Assay", "Runs", "Samples", "First Run", "Last Run"]
+        summary_results, columns=["Assay", "Runs", "Samples", "First Run", "Last Run"]
     )
 
     # Create a copy for the bar chart before adding the 'Total' row
@@ -290,20 +249,14 @@ def update_runs_per_assay_chart(data, chart_type):
     df = pd.read_json(StringIO(data), orient="split")
     title = "Total Runs per Assay"
 
-    if chart_type == "pie":
-        fig = px.pie(df, values="Runs", names="Assay", title=title)
-    else:
-        fig = px.bar(
-            df,
-            x="Assay",
-            y="Runs",
-            text="Runs",
-            title=title,
-            labels={"Runs": "Number of Runs"},
-        )
-        fig.update_traces(textposition="outside")
-
-    fig.update_layout(margin=dict(t=40, b=10, l=10, r=10), xaxis_title=None)
+    fig = create_summary_chart(
+        df,
+        x_col="Assay",
+        y_col="Runs",
+        title=title,
+        chart_type=chart_type,
+        labels={"Runs": "Number of Runs"},
+    )
     return dcc.Graph(figure=fig)
 
 
@@ -319,13 +272,13 @@ def update_total_sequencer_chart(data, chart_type):
 
     df = pd.read_json(StringIO(data), orient="split")
     title = "Total Runs per Sequencer"
-    if chart_type == "pie":
-        fig = px.pie(df, values="run_count", names="sequencer_id", title=title)
-    else:
-        fig = px.bar(df, x="sequencer_id", y="run_count", title=title, text="run_count")
-        fig.update_traces(textposition="outside")
-
-    fig.update_layout(margin=dict(t=40, b=10, l=10, r=10), xaxis_title=None)
+    fig = create_summary_chart(
+        df,
+        x_col="sequencer_id",
+        y_col="run_count",
+        title=title,
+        chart_type=chart_type,
+    )
     return dcc.Graph(figure=fig)
 
 
@@ -348,24 +301,12 @@ def update_sequencer_by_assay_tabs(data, chart_type):
         assay_df = df[df["assay"] == assay_name]
         if assay_df.empty:
             continue
-        if chart_type == "pie":
-            sequencer_fig = px.pie(
-                assay_df,
-                values="run_count",
-                names="sequencer_id",
-                title="Runs per Sequencer",
-            )
-        else:
-            sequencer_fig = px.bar(
-                assay_df,
-                x="sequencer_id",
-                y="run_count",
-                title="Runs per Sequencer",
-                text="run_count",
-            )
-            sequencer_fig.update_traces(textposition="outside")
-        sequencer_fig.update_layout(
-            margin=dict(t=40, b=10, l=10, r=10), xaxis_title=None
+        sequencer_fig = create_summary_chart(
+            assay_df,
+            x_col="sequencer_id",
+            y_col="run_count",
+            title="Runs per Sequencer",
+            chart_type=chart_type,
         )
         sequencer_tabs.append(
             dbc.Tab(
@@ -398,23 +339,13 @@ def update_sex_by_assay_tabs(data, chart_type):
         assay_df = df[df["assay"] == assay_name]
         if assay_df.empty:
             continue
-        if chart_type == "pie":
-            sex_fig = px.pie(
-                assay_df,
-                values="sample_count",
-                names="sex",
-                title="Sample Sex Distribution",
-            )
-        else:
-            sex_fig = px.bar(
-                assay_df,
-                x="sex",
-                y="sample_count",
-                title="Sample Sex Distribution",
-                text="sample_count",
-            )
-            sex_fig.update_traces(textposition="outside")
-        sex_fig.update_layout(margin=dict(t=40, b=10, l=10, r=10), xaxis_title=None)
+        sex_fig = create_summary_chart(
+            assay_df,
+            x_col="sex",
+            y_col="sample_count",
+            title="Sample Sex Distribution",
+            chart_type=chart_type,
+        )
         sex_tabs.append(
             dbc.Tab(dcc.Graph(figure=sex_fig), label=assay_name, tab_id=assay_name)
         )

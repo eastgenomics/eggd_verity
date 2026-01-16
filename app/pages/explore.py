@@ -4,12 +4,16 @@ import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
 from dash import Input, Output, State, callback, dash_table, dcc, html
-from sqlmodel import select
 
 from app.db import get_session
-from app.utils import get_metric_models
 from data.models.choices import QCStatus, SexKaryotype
-from data.models.reports import Assay, Run, Sample
+from data.queries.explore import (
+    get_available_metrics_for_run,
+    get_metric_data_for_run,
+    get_runs_for_assay,
+)
+from data.queries.general import get_assay_names
+from data.utils.model_utils import get_metric_models
 
 dash.register_page(__name__, path="/explore", name="Explore Data")
 
@@ -101,8 +105,7 @@ layout = dbc.Container(
 def populate_assay_dropdown(_):
     """Populates the assay dropdown with all available assay names."""
     with get_session() as session:
-        assays = session.exec(select(Assay.name).distinct()).all()
-    return sorted(assays)
+        return get_assay_names(session)
 
 
 @callback(
@@ -120,12 +123,7 @@ def update_assay_info_and_runs_table(assay_name):
 
     with get_session() as session:
         # Fetch the first assay that matches the name.
-        assay_obj = session.exec(select(Assay).where(Assay.name == assay_name)).first()
-        if not assay_obj:
-            return default_header, dbc.Alert(
-                f"Assay '{assay_name}' not found.", color="warning"
-            )
-        runs = session.exec(select(Run).where(Run.assay_id == assay_obj.id)).all()
+        assay_obj, runs = get_runs_for_assay(session, assay_name)
 
     assay_details = html.Div(
         [
@@ -175,22 +173,9 @@ def update_metric_selection(active_cell):
     run_id = active_cell["row_id"]
     available_metrics = []
     with get_session() as session:
-        for name, model in METRIC_MODEL_MAP.items():
-            # Check for run-level metrics
-            if model.metric_level == "run":
-                exists_stmt = select(model.id).where(model.run_id == run_id).limit(1)
-                if session.exec(exists_stmt).first():
-                    available_metrics.append(name)
-            # Check for sample-level metrics
-            else:
-                exists_stmt = (
-                    select(model.id)
-                    .join(Sample)
-                    .where(Sample.run_id == run_id)
-                    .limit(1)
-                )
-                if session.exec(exists_stmt).first():
-                    available_metrics.append(name)
+        available_metrics = get_available_metrics_for_run(
+            session, run_id, METRIC_MODEL_MAP
+        )
 
     if not available_metrics:
         return dbc.Alert("No metric data found for this run.", color="warning"), run_id
@@ -218,16 +203,7 @@ def update_metric_details_table(metric_name, run_id):
 
     tool_model = METRIC_MODEL_MAP[metric_name]
     with get_session() as session:
-        if tool_model.metric_level == "run":
-            statement = select(tool_model).where(tool_model.run_id == run_id)
-            results = session.exec(statement).all()
-        else:
-            statement = (
-                select(Sample.name, tool_model)
-                .join(tool_model)
-                .where(Sample.run_id == run_id)
-            )
-            results = session.exec(statement).all()
+        results = get_metric_data_for_run(session, run_id, tool_model)
 
     if not results:
         return dbc.Alert(f"No {metric_name} data found for this run.", color="warning")
