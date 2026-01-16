@@ -1,6 +1,6 @@
 # Verity Data Pipeline
 
-This directory contains the core logic for the Verity ETL pipeline, including data models, database configuration, and the main pipeline script.
+This directory contains the core logic for the Verity backend, including the ETL pipeline, data models, query logic, and plotting functions.
 
 ## Database Migrations with Alembic
 
@@ -46,12 +46,39 @@ Whenever a change is made to a `SQLModel` class in the `data/models/` directory 
 
 ## Running the ETL Pipeline
 
-Once the database is initialized and up-to-date, you can run the main ETL pipeline as before. The pipeline will now use the existing database managed by Alembic.
+The ETL (Extract, Transform, Load) pipeline scans DNAnexus for MultiQC JSON reports, processes them, and loads the metrics into the local SQLite database.
 
+### First Run & Archival Handling
+
+When running the pipeline for the first time (or on new projects), it scans for relevant files. **If any required reports are found to be archived on DNAnexus, the pipeline will automatically request that they be unarchived and then exit.**
+
+You will need to wait for the unarchival process to complete (times vary by cloud provider) and then **rerun the pipeline**. On the subsequent run, the files will be accessible, and data ingestion will proceed.
+
+### Execution & Deployment
+
+In a deployment environment, the pipeline is typically scheduled using `cron` or a `systemd` timer to run periodically (e.g., nightly) to keep the dashboard up to date. However, it can be run manually from the command line for development, testing, or ad-hoc updates.
+
+### Command Line Options
+
+Run the pipeline using the module syntax:
+
+```bash
+python -m data.pipeline [OPTIONS]
+```
 
 **Examples:**
 
-- **To run on a specific list of projects:**
-```bash
-python -m data.pipeline project-xxx project-xyz
-```
+- **Run on specific projects:**  
+  `python -m data.pipeline --project_ids='["project-xxxx", "project-yyyy"]'`  
+  Useful for testing specific datasets or updating a single run.
+
+- **Run on recent projects:**  
+  `python -m data.pipeline --created_after="-30d"`  
+  Scans only projects created in the last 30 days. This is the recommended flag for daily cron jobs to reduce API overhead.
+
+- **Run on a random sample:**  
+  `python -m data.pipeline --sample_size=10`  
+  Processes a random subset of projects. Useful for quick testing during development.
+
+- **View help:**  
+  `python -m data.pipeline --help`
