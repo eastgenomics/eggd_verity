@@ -1,9 +1,9 @@
-import json
+"""ETL Pipeline for MultiQC Data into Relational Database"""
 import logging
 import random
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Type
 
 import dxpy
@@ -31,10 +31,12 @@ from data.models import (
 )
 from data.models.choices import SexKaryotype
 from data.models.reports import Assay, BaseMetrics, Run, Sample
+from data.utils.dnanexus import login_to_dnanexus, find_dx_projects, get_multiqc_reports, get_project_metadata
+from data.utils.multiqc import parse_multiqc_section, read_multiqc_data
+from data.utils.utils import get_sample_metadata
 
 from .config import IGNORE_SECTIONS, LOGGING_CONFIG, MAX_WORKERS, PROD_PROJECT_PATTERN
 from .db_init import create_db_and_tables, engine
-from .utils import clean_df, find_dx_projects, get_multiqc_reports, get_project_metadata
 
 logging.config.dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger(__name__)
@@ -82,52 +84,14 @@ def get_or_create_sample(session: Session, name: str, run_id: int) -> Sample:
 
     # Remove any trailing run suffixes
     name = re.sub(r"_S\d+.*$", "", name)
-
-    control_pattern = r"-[0-9]+Q[0-9]+-|NA\d+.*|HG00.*"
-    is_control = bool(re.search(control_pattern, name))
-
-    batch = ""
-    testcode = None
-    sex = SexKaryotype.UNKNOWN
-
-    parts = name.split("-")
-
-    # Extract batch, testcode, and sex from sample name
-
-    # Case 1: Handle HRD naming convention (...-25-HRDS11-9197-F)
-    if len(parts) >= 7 and "HRD" in parts[-3]:
-        sex = SexKaryotype(parts[-1])
-        testcode = parts[-2]
-        batch = parts[-3]
-
-    # Case 2: Handle standard naming convention (...-BATCH-TESTCODE-SEX-...)
-    elif len(parts) >= 6:
-        sex = SexKaryotype(parts[-2])
-        testcode = parts[-3]
-        batch = parts[-4]
-
-    # Case 3: Handle naming convention for Helios (...-BATCH-TESTCODE)
-    elif len(parts) >= 4:
-        if parts[-1].isdigit() and len(parts[-1]) >= 4:
-            testcode = parts[-1]
-            batch = parts[-2]
-
-    if testcode and testcode.isdigit():
-        testcode = int(testcode)
-    else:
-        testcode = None  # Ensure testcode is None if not a valid integer
+    metadata: dict = get_sample_metadata(name)
 
     return get_or_create(
         session,
         Sample,
         name=name,
         run_id=run_id,
-        defaults={
-            "is_control": is_control,
-            "sex": sex,
-            "batch": batch,
-            "testcode": testcode,
-        },
+        defaults=metadata,
     )
 
 
@@ -153,27 +117,6 @@ def get_mqc_to_models() -> dict[str, Type[BaseMetrics]]:
                 )
             model_map[section_name] = model_cls
     return model_map
-
-
-def read_multiqc_data(project_id: str, file_id: str) -> dict:
-    """
-    Reads MultiQC data from a DNAnexus MultiQC JSON file.
-    """
-    with dxpy.open_dxfile(file_id, project_id) as dx_file:
-        multiqc_data = json.load(dx_file)["report_saved_raw_data"]
-        return multiqc_data
-
-
-def parse_multiqc_section(section_data: dict) -> pd.DataFrame:
-    """
-    Parses a MultiQC section data dictionary into a DataFrame.
-    """
-    df = (
-        pd.DataFrame.from_dict(section_data, orient="index")
-        .reset_index()
-        .rename(columns={"index": "sample"})
-    )
-    return df
 
 
 def process_report(
@@ -210,7 +153,7 @@ def process_report(
             }
             run = get_or_create(session, Run, source=source, defaults=run_defaults)
 
-            # Single check to see if the run has already been processed
+            # Check if the run has already been processed
             if run.processed_at:
                 logging.info(f"Skipping {run.run_folder}, already processed.")
                 return
@@ -237,7 +180,7 @@ def process_report(
                 )
                 logging.debug(f"Added {recs} records for {section_name}")
 
-            run.processed_at = datetime.utcnow()
+            run.processed_at = datetime.now(timezone.utc)
             session.commit()
             logging.info(
                 f"Successfully processed and committed records in {run_folder}"
@@ -273,6 +216,8 @@ def main(
     create_db_and_tables()
     model_map = get_mqc_to_models()
 
+    login_to_dnanexus()
+
     if not project_ids:
         logger.info(
             "No project IDs provided via command line, searching for projects..."
@@ -297,17 +242,12 @@ def main(
         logger.warning("No live MultiQC reports found. Exiting.")
         return
 
-    live_reports = df[df["archival_state"] == "live"]
-    if live_reports.empty:
-        logger.warning("All found reports are archived. Exiting.")
-        return
-
-    logger.info(f"Starting ETL pipeline for {len(live_reports)} MultiQC reports...")
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    logger.info(f"Starting ETL pipeline for {len(df)} MultiQC reports...")
+    n_workers = min(MAX_WORKERS, len(df))
+    with ThreadPoolExecutor(max_workers=n_workers) as executor:
         futures = [
             executor.submit(process_report, row.project_id, row.file_id, model_map)
-            for row in live_reports.itertuples(index=False)
+            for row in df.itertuples(index=False)
         ]
         for future in as_completed(futures):
             future.result()

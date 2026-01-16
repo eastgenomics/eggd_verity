@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, State, callback, dcc, html, no_update
 from sqlmodel import select
 
-from app.components import create_sample_filter_control, create_warning_figure
+from app.components import create_warning_figure
 from app.db import get_session
 from app.plot_utils import format_categorical_columns, register_hover_callbacks
 from app.utils import get_metric_models, get_numeric_fields, get_plot_grouping_options
@@ -558,5 +558,4 @@ def close_offcanvas(_figure, is_open):
     if _figure.get("layout", {}).get("paper_bgcolor") == "#fff3cd":
         return no_update
 
-    return False
     return False

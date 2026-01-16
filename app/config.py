@@ -1,4 +1,7 @@
 from decouple import config
+from data.utils.secrets import load_secrets
+
+#secrets = load_secrets("verity/prod/app") TODO: setup secret manager
 
 class Settings:
     USERNAME: str = config("VERITY_USERNAME")

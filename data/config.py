@@ -2,14 +2,20 @@
 Configuration constants for Verity ETL pipeline.
 """
 
+from typing import Any
 import logging.config
 from pathlib import Path
+from decouple import config
+from data.utils.secrets import load_secrets
+
+#secrets = load_secrets("verity/prod/app") TODO
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 LOG_DIR = PROJECT_ROOT / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
-LOGGING_CONFIG = {
+
+LOGGING_CONFIG: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
@@ -64,7 +70,10 @@ IGNORE_SECTIONS: list[str] = [
     "multiqc_general_stats",
 ]
 
-PROD_PROJECT_PATTERN = r"^002_.*_(TWE|CEN|MYE|TSO500|PCAN|HRD|FH|SNP|TSOE)$"
-DATABASE_FILE = "verity_db.sqlite3"
-DATABASE_PATH = PROJECT_ROOT / "data" / DATABASE_FILE
-MAX_WORKERS = 16
+PROD_PROJECT_PATTERN: str = r"^002_.*_(TWE|CEN|MYE|TSO500|PCAN|HRD|FH|SNP|TSOE)$"
+DATABASE_FILE: str = "verity_db.sqlite3"
+DATABASE_PATH: Path = PROJECT_ROOT / "data" / DATABASE_FILE
+MAX_WORKERS: int = 16
+
+#DX_TOKEN: str = secrets["DX_TOKEN"]
+DX_TOKEN: str = config("DX_TOKEN")
