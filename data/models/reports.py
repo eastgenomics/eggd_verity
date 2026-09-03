@@ -101,6 +101,10 @@ class Assay(SQLModel, table=True):
     ref_genome: str | None = Field(
         default=None, description="Reference genome build (e.g., B37, B38)"
     )
+    active: bool = Field(
+        default=True,
+        description="Whether this assay is active rather than legacy or obsolete",
+    )
 
     runs: list["Run"] = Relationship(back_populates="assay")
 
@@ -301,13 +305,14 @@ class BaseMetrics(SQLModel):
         df["lane"] = df[sample_col].str.extract(lane, expand=False)
         df["read_pair"] = df[sample_col].str.extract(readpair, expand=False)
 
-        
         # Strip Illumina run suffix (_S1_L001...)
         # Strip trailing .bam or .alignment
         df[sample_col] = (
             df[sample_col]
             .str.replace(r"_S\d+.*$", "", regex=True)
-            .str.replace(r"\.(?:bam|alignment|cram|hsmetrics)$", "", regex=True, case=False)
+            .str.replace(
+                r"\.(?:bam|alignment|cram|hsmetrics)$", "", regex=True, case=False
+            )
         )
 
         # Drop rows where the sample name is 'undetermined'

@@ -67,20 +67,39 @@ def create_chart_card(title, toggle_id, graph_container_id, default_view="bar"):
 layout = dbc.Container(
     [
         dcc.Store(id="dashboard-page-load"),
+        dcc.Store(
+            id="dashboard-include-legacy-store",
+            storage_type="session",
+            data=False,
+        ),
         dcc.Store(id="runs-per-assay-store"),
         dcc.Store(id="total-sequencer-store"),
         dcc.Store(id="sequencer-summary-store"),
         dcc.Store(id="sex-summary-store"),
         dbc.Row(
-            dbc.Col(
-                html.Div(
-                    [
-                        html.H1("Verity Dashboard"),
-                        html.P("An overview of summary stats.", className="lead"),
-                    ],
-                    className="mb-4",
-                )
-            )
+            [
+                dbc.Col(
+                    html.Div(
+                        [
+                            html.H1("Verity Dashboard"),
+                            html.P("An overview of summary stats.", className="lead"),
+                        ],
+                        className="mb-0",
+                    )
+                ),
+                dbc.Col(
+                    dbc.Switch(
+                        id="dashboard-include-legacy-switch",
+                        label="Include legacy assays",
+                        value=False,
+                        className="mt-2",
+                    ),
+                    width="auto",
+                ),
+            ],
+            justify="between",
+            align="start",
+            className="mb-4",
         ),
         dbc.Row(
             dbc.Col(
@@ -150,6 +169,14 @@ layout = dbc.Container(
 
 
 @callback(
+    Output("dashboard-include-legacy-store", "data"),
+    Input("dashboard-include-legacy-switch", "value"),
+)
+def update_include_legacy_store(value):
+    return value is True
+
+
+@callback(
     Output("summary-table", "data"),
     Output("summary-table", "columns"),
     Output("runs-per-assay-store", "data"),
@@ -157,15 +184,17 @@ layout = dbc.Container(
     Output("sequencer-summary-store", "data"),
     Output("sex-summary-store", "data"),
     Input("dashboard-page-load", "data"),
+    Input("dashboard-include-legacy-store", "data"),
 )
-def update_home_page_summary(_):
+def update_home_page_summary(_, include_legacy):
+    include_legacy = include_legacy is True
     with get_session() as session:
         (
             summary_results,
             sequencer_results,
             total_sequencer_results,
             sex_results,
-        ) = get_summary_stats(session)
+        ) = get_summary_stats(session, include_legacy=include_legacy)
 
     if not summary_results:
         return [], [], None, None, None, None

@@ -35,7 +35,7 @@ navbar = dbc.NavbarSimple(
         dbc.NavItem(dbc.NavLink("Trends", href="/trends")),
         dbc.NavItem(dbc.NavLink("Raincloud", href="/plot")),
         dbc.NavItem(dbc.NavLink("Correlation", href="/correlation")),
-        dbc.NavItem(dbc.NavLink("Explore Data", href="/explore")),
+        dbc.NavItem(dbc.NavLink("Explore", href="/explore")),
     ],
     brand=html.Span(
         "Verity",

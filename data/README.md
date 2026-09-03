@@ -82,3 +82,27 @@ python -m data.pipeline [OPTIONS]
 
 - **View help:**  
   `python -m data.pipeline --help`
+
+### Updating Assay Status
+
+The legacy status manager marks configured assay names as inactive. The
+initial list is `CEN`, `FH`, `SNP`, `TSOE`, and `TWE`; it can be extended in
+`data/manager/update_assay_status.py`. Matching names are updated across all
+reference genomes.
+
+The command is a dry run by default:
+
+```bash
+python -m data.manager.update_assay_status
+```
+
+Apply the changes explicitly with:
+
+```bash
+python -m data.manager.update_assay_status --dry_run=False
+```
+
+The Dashboard excludes inactive assays by default. Its session-persistent
+`Include legacy assays` switch includes them in the Dashboard summary table
+and charts when enabled. Trends, Correlation, Explore Data, and Raincloud
+Plot are not filtered by this Dashboard-only setting.
