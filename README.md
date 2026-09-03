@@ -37,6 +37,29 @@ Handles data ingestion, storage, and retrieval. This module is designed to be in
     python -m app.main
     ```
 
+### Authentication
+
+Basic Auth is enabled by default. Configure it through environment variables:
+
+```bash
+VERITY_AUTH_ENABLED=true
+VERITY_USERNAME=your-username
+VERITY_PASSWORD=your-password
+VERITY_SECRET_KEY=your-secret-key
+```
+
+To disable Basic Auth for local development or an environment protected by a
+trusted firewall or identity-aware reverse proxy, explicitly set:
+
+```bash
+VERITY_AUTH_ENABLED=false
+```
+
+The flag accepts `true`, `1`, `yes`, `on`, `false`, `0`, `no`, and `off`.
+Invalid values fail during startup. Username and password are required when
+authentication is enabled and may be omitted when it is explicitly disabled.
+Use HTTPS in deployed environments and inject credentials through the environment or a secret manager.
+
 For detailed instructions on managing the database and running the data pipeline, refer to the **Data Module Documentation**.
 
 ## Testing

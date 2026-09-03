@@ -5,8 +5,6 @@ from dash import Dash, Input, Output, callback, dcc, html
 
 from app.config import settings
 
-VALID_USERNAME_PASSWORD_PAIRS = {settings.USERNAME: settings.PASSWORD}
-
 app = Dash(
     __name__,
     use_pages=True,
@@ -20,7 +18,16 @@ app = Dash(
 server = app.server
 server.secret_key = settings.SECRET_KEY
 
-auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
+
+def configure_auth(app, settings):
+    """Attach Basic Auth when it is enabled in application settings."""
+    if settings.AUTH_ENABLED:
+        credentials = {settings.USERNAME: settings.PASSWORD}
+        return dash_auth.BasicAuth(app, credentials)
+    return None
+
+
+auth = configure_auth(app, settings)
 
 navbar = dbc.NavbarSimple(
     children=[
