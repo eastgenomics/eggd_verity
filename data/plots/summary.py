@@ -13,9 +13,23 @@ def create_summary_chart(
 ) -> go.Figure:
     """Generates a bar or pie chart for summary data."""
     if chart_type == "pie":
-        fig = px.pie(df, values=y_col, names=x_col, title=title)
+        fig = px.pie(
+            df,
+            values=y_col,
+            names=x_col,
+            title=title,
+            template="plotly_white",
+        )
     else:
-        fig = px.bar(df, x=x_col, y=y_col, text=y_col, title=title, labels=labels)
+        fig = px.bar(
+            df,
+            x=x_col,
+            y=y_col,
+            text=y_col,
+            title=title,
+            labels=labels,
+            template="plotly_white",
+        )
         fig.update_traces(textposition="outside")
 
     fig.update_layout(margin=dict(t=40, b=10, l=10, r=10), xaxis_title=None)

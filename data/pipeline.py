@@ -216,7 +216,7 @@ def main(
     create_db_and_tables()
     model_map = get_mqc_to_models()
 
-    login_to_dnanexus()
+    #login_to_dnanexus()
 
     if not project_ids:
         logger.info(

@@ -10,7 +10,11 @@ VALID_USERNAME_PASSWORD_PAIRS = {settings.USERNAME: settings.PASSWORD}
 app = Dash(
     __name__,
     use_pages=True,
-    external_stylesheets=[dbc.themes.BOOTSTRAP],
+    external_stylesheets=[
+        dbc.themes.BOOTSTRAP,
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css",
+        "https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&display=swap",
+    ],
     suppress_callback_exceptions=True,
 )
 server = app.server
@@ -20,13 +24,21 @@ auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
 
 navbar = dbc.NavbarSimple(
     children=[
-        dbc.NavItem(dbc.NavLink("Home", href="/")),
+        dbc.NavItem(dbc.NavLink("Dashboard", href="/dashboard")),
         dbc.NavItem(dbc.NavLink("Trends", href="/trends")),
-        dbc.NavItem(dbc.NavLink("Plot", href="/plot")),
+        dbc.NavItem(dbc.NavLink("Raincloud", href="/plot")),
         dbc.NavItem(dbc.NavLink("Correlation", href="/correlation")),
         dbc.NavItem(dbc.NavLink("Explore Data", href="/explore")),
     ],
-    brand="Verity QC Audit",
+    brand=html.Span(
+        "Verity",
+        style={
+            "fontFamily": "'DM Serif Display', Georgia, serif",
+            "fontSize": "1.8rem",
+            "fontStyle": "italic",
+            "letterSpacing": "0.04em",
+        },
+    ),
     brand_href="/",
     color="primary",
     dark=True,

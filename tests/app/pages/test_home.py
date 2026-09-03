@@ -1,55 +1,49 @@
+from unittest.mock import MagicMock
+
 import dash
-from unittest.mock import MagicMock, patch
+from dash import dcc
 
 # Mock dash.register_page to prevent PageError during import
 dash.register_page = MagicMock()
 
-from app.pages.home import update_home_page_summary
+from app.pages.home import create_overview_card, pages
 
 
-class TestHomePageCallbacks:
-    @patch("app.pages.home.get_session")
-    @patch("app.pages.home.get_summary_stats")
-    def test_update_home_page_summary_with_data(self, mock_get_stats, mock_get_session):
-        """Tests the main home page summary callback with data."""
-        # Setup mocks
-        mock_session = MagicMock()
-        mock_get_session.return_value.__enter__.return_value = mock_session
+class TestHomePage:
+    def test_overview_contains_expected_modules(self):
+        assert [page["title"] for page in pages] == [
+            "Dashboard",
+            "Raincloud Plot",
+            "Metric Trends",
+            "Correlation",
+            "Explore Data",
+            "Run level metrics",
+        ]
 
-        # Mock return data from query
-        mock_get_stats.return_value = (
-            [("Assay A", 10, 5, "2023-01-01", "2023-01-10")],  # summary
-            [("Assay A", "Seq1", 10)],  # sequencer
-            [("Seq1", 10)],  # total sequencer
-            [("Assay A", 1, 5)],  # sex (1=Male)
+        live_pages = [page for page in pages if page.get("href")]
+        assert {page["href"] for page in live_pages} == {
+            "/dashboard",
+            "/plot",
+            "/trends",
+            "/correlation",
+            "/explore",
+        }
+
+    def test_beta_and_coming_soon_statuses(self):
+        assert [page["title"] for page in pages if page.get("status") == "Beta"] == [
+            "Dashboard",
+            "Raincloud Plot",
+        ]
+        coming_soon = next(
+            page for page in pages if page["title"] == "Run level metrics"
         )
+        assert coming_soon["status"] == "Coming soon"
+        assert "href" not in coming_soon
 
-        # Call callback
-        results = update_home_page_summary(None)
-
-        # Unpack and assert results (6 outputs)
-        assert len(results) == 6
-
-        # Check DataTable data
-        data = results[0]
-        assert len(data) == 2  # 1 row + 1 total row
-        assert data[0]["Assay"] == "Assay A"
-        assert data[1]["Assay"] == "Total"
-
-        # Check JSON outputs for stores
-        assert "Assay A" in results[2]  # runs_json
-        assert "Seq1" in results[3]  # total_sequencer_json
-        assert "Assay A" in results[4]  # sequencer_summary_json
-        assert "Assay A" in results[5]  # sex_summary_json
-
-    @patch("app.pages.home.get_session")
-    @patch("app.pages.home.get_summary_stats")
-    def test_update_home_page_summary_no_data(self, mock_get_stats, mock_get_session):
-        """Tests the main home page summary callback when no data is returned."""
-        mock_session = MagicMock()
-        mock_get_session.return_value.__enter__.return_value = mock_session
-        mock_get_stats.return_value = ([], [], [], [])
-
-        results = update_home_page_summary(None)
-        # Should return empty lists/None for all 6 outputs
-        assert results == ([], [], None, None, None, None)
+    def test_coming_soon_card_is_not_a_link(self):
+        card = create_overview_card(
+            "Run level metrics",
+            "Detailed metrics for individual sequencing runs.",
+            status="Coming soon",
+        )
+        assert not isinstance(card, dcc.Link)

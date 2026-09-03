@@ -292,7 +292,6 @@ class BaseMetrics(SQLModel):
             return df
 
         # Regex to find suffixes like _S1_L001_R1_001 or _S22_L001_sorted
-        suffix = r"_S\d+.*$"
 
         flowcell = r"(S\d+)"
         lane = r"(L\d+)"
@@ -302,8 +301,14 @@ class BaseMetrics(SQLModel):
         df["lane"] = df[sample_col].str.extract(lane, expand=False)
         df["read_pair"] = df[sample_col].str.extract(readpair, expand=False)
 
-        # Clean the original sample name by removing the entire suffix
-        df[sample_col] = df[sample_col].str.replace(suffix, "", regex=True)
+        
+        # Strip Illumina run suffix (_S1_L001...)
+        # Strip trailing .bam or .alignment
+        df[sample_col] = (
+            df[sample_col]
+            .str.replace(r"_S\d+.*$", "", regex=True)
+            .str.replace(r"\.(?:bam|alignment|cram|hsmetrics)$", "", regex=True, case=False)
+        )
 
         # Drop rows where the sample name is 'undetermined'
         df = df.dropna(subset=[sample_col])

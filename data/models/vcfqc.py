@@ -31,10 +31,6 @@ class VcfQcHetHom(BaseMetrics, table=True):
     @classmethod
     def custom_transform(cls, df: pd.DataFrame) -> pd.DataFrame:
         """Handles aliases and coerces numeric columns to float, filling NA with 0."""
-        # Alias field is broken in SQLModel v0.0.14
-        # https://github.com/fastapi/sqlmodel/discussions/725
-        # But this workaround is perfect for `bulk_create_from_df`
-
         alias_mapping = {
             "mean_het_ratio": "mean_het",
             "mean_homo_ratio": "mean_hom",

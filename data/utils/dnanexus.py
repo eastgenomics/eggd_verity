@@ -26,6 +26,7 @@ def login_to_dnanexus(token: str = DX_TOKEN) -> None:
     SystemExit
         If the login fails.
     """
+    print(token)
 
     DX_SECURITY_CONTEXT = {
         "auth_token_type": "Bearer",
