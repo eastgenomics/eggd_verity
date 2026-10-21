@@ -12,10 +12,10 @@ import pandas as pd
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
 
-from data.models import Assay, BaseMetrics, Run, Sample
+from data.models import Assay, BaseMetrics, Run
 from data.utils.dnanexus import login_to_dnanexus, find_dx_projects, get_multiqc_reports, get_project_metadata
 from data.utils.multiqc import parse_multiqc_section, read_multiqc_data
-from data.utils.utils import get_sample_metadata
+from data.utils.sample import get_or_create_run_samples
 
 from .config import IGNORE_SECTIONS, LOGGING_CONFIG, MAX_WORKERS, PROD_PROJECT_PATTERN
 from .db_init import create_db_and_tables, engine
@@ -59,22 +59,6 @@ def get_or_create(
         else:
             # Re-raise other integrity errors (foreign key, not null, etc.)
             raise
-
-
-def get_or_create_sample(session: Session, name: str, run_id: int) -> Sample:
-    """Special get_or_create for Sample, handling control and sex logic."""
-
-    # Remove any trailing run suffixes
-    name = re.sub(r"_S\d+.*$", "", name)
-    metadata: dict = get_sample_metadata(name)
-
-    return get_or_create(
-        session,
-        Sample,
-        name=name,
-        run_id=run_id,
-        defaults=metadata,
-    )
 
 
 def get_mqc_to_models() -> dict[str, Type[BaseMetrics]]:
@@ -140,6 +124,15 @@ def process_report(
                 logging.info(f"Skipping {run.run_folder}, already processed.")
                 return
 
+            sample_map = get_or_create_run_samples(
+                session=session,
+                multiqc_data=multiqc_data,
+                run_id=run.id,
+            )
+            logging.info(
+                f"Identified {len(sample_map)} samples for run {run_folder}"
+            )
+
             for section_name, section_data in multiqc_data.items():
                 model = model_map.get(section_name)
                 if not model:
@@ -158,7 +151,7 @@ def process_report(
                     session=session,
                     df=df,
                     run=run,
-                    get_or_create_sample=get_or_create_sample,
+                    sample_map=sample_map,
                 )
                 logging.debug(f"Added {recs} records for {section_name}")
 

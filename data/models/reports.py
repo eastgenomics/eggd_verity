@@ -8,7 +8,7 @@ from pydantic import BeforeValidator, ConfigDict, StringConstraints
 from sqlalchemy import func
 from sqlmodel import Field, Relationship, Session, SQLModel, UniqueConstraint, select
 
-from ..utils import standardise_column_names
+from ..utils import clean_sample_name, standardise_column_names
 from .choices import QCStatus, SexKaryotype
 
 if TYPE_CHECKING:
@@ -170,6 +170,15 @@ class Sample(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True, description="The name of the sample")
+    sample_number: str | None = Field(
+        default=None, description="The sample number from FastQC (e.g. S1, S7)"
+    )
+    well_col: str | None = Field(
+        default=None, description="The samplesheet well column (e.g. 1-12)"
+    )
+    well_row: str | None = Field(
+        default=None, description="The samplesheet well row (e.g. A-H)"
+    )
     sex: SexKaryotype = Field(
         default=SexKaryotype.UNKNOWN, description="Reported sex of the sample"
     )
@@ -294,38 +303,20 @@ class BaseMetrics(SQLModel):
     @classmethod
     def _clean_sample_names(cls, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Cleans sample names by stripping run-specific suffixes and extracts
-        metadata (flow cell, lane, read pair) into separate columns if they exist.
+        Cleans sample names using the central clean_sample_name utility and
+        extracts lane and read_pair into separate columns if present.
         """
         sample_col = cls.index_col
         if sample_col not in df.columns:
             return df
 
-        # Regex to find suffixes like _S1_L001_R1_001 or _S22_L001_sorted
+        df["lane"] = df[sample_col].str.extract(r"(L\d+)", expand=False)
+        df["read_pair"] = df[sample_col].str.extract(r"(R[12])", expand=False)
+        df[sample_col] = df[sample_col].map(clean_sample_name)
 
-        flowcell = r"(S\d+)"
-        lane = r"(L\d+)"
-        readpair = r"(R[12])"
-
-        df["flow_cell"] = df[sample_col].str.extract(flowcell, expand=False)
-        df["lane"] = df[sample_col].str.extract(lane, expand=False)
-        df["read_pair"] = df[sample_col].str.extract(readpair, expand=False)
-
-        # Strip Illumina run suffix (_S1_L001...)
-        # Strip trailing .bam or .alignment
-        df[sample_col] = (
-            df[sample_col]
-            .str.replace(r"_S\d+.*$", "", regex=True)
-            .str.replace(
-                r"\.(?:bam|alignment|cram|hsmetrics|star)$", "", regex=True, case=False
-            )
-        )
-
-        # Drop rows where the sample name is 'undetermined'
+        # Drop rows where the sample name is empty or undetermined
         df = df.dropna(subset=[sample_col])
-        df = df[~df[sample_col].astype(str).str.lower().str.startswith("undetermined")]
-
-        return df
+        return df[~df[sample_col].str.lower().str.startswith("undetermined")]
 
     @classmethod
     @classproperty
@@ -406,7 +397,7 @@ class BaseMetrics(SQLModel):
         session: Session,
         df: pd.DataFrame,
         run: Run,
-        get_or_create_sample: Callable[[Session, str, int], "Sample"],
+        sample_map: dict[str, "Sample"] | None = None,
     ) -> int:
         """Processes a DataFrame and bulk-creates metric instances in the database."""
 
@@ -420,10 +411,8 @@ class BaseMetrics(SQLModel):
 
             if cls.metric_level == "sample":
                 sample_name = record.get(cls.index_col)
-                sample = get_or_create_sample(
-                    # pyrefly: ignore[unexpected-keyword]
-                    session=session, name=sample_name, run_id=run.id
-                )
+                if not sample_name or not (sample := (sample_map or {}).get(str(sample_name))):
+                    continue
                 metric_data["sample_id"] = sample.id
             elif cls.metric_level == "run":
                 metric_data["run_id"] = run.id

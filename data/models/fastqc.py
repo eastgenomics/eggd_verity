@@ -19,7 +19,6 @@ class Fastqc(BaseMetrics, table=True):
 
     sample: "Sample" = Relationship(back_populates="fastqc_metrics")
 
-    flow_cell: str | None = Field(default=None, description="Flow cell (eg S5)")
     lane: str | None = Field(default=None, description="Sequencing lane (eg L001)")
     read_pair: str | None = Field(default=None, description="Read pair (eg R1, R2)")
 
