@@ -23,6 +23,7 @@ from data.models import (
     tso500,
     vcfqc,
     verifybamid,
+    gen_stats,
 )
 from data.models.reports import Assay, Run, Sample
 from data.models.sex_check import SexCheck

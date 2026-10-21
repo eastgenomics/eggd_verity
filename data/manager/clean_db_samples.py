@@ -21,6 +21,7 @@ from data.models import (
     tso500,
     vcfqc,
     verifybamid,
+    gen_stats,
 )
 from data.models.reports import Sample
 

@@ -13,6 +13,7 @@ from data.models import (
     tso500,
     vcfqc,
     verifybamid,
+    gen_stats,
 )
 
 

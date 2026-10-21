@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from .tso500 import Tso500MetricsOutputDna
     from .vcfqc import VcfQcHetHom
     from .verifybamid import VerifyBamId
+    from .gen_stats import GenStats
 
 
 class classproperty(property):
@@ -245,6 +246,7 @@ class Sample(SQLModel, table=True):
         back_populates="sample"
     )
     verifybamid_metrics: list["VerifyBamId"] = Relationship(back_populates="sample")
+    gen_stats_metrics: list["GenStats"] = Relationship(back_populates="sample")
 
     @classmethod
     @classproperty

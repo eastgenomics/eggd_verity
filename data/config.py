@@ -67,7 +67,6 @@ IGNORE_SECTIONS: list[str] = [
     "multiqc_picard_quality_by_cycle",
     "multiqc_picard_quality_score_distribution",
     "picard_QualityScoreDistribution_histogram",
-    "multiqc_general_stats",
 ]
 
 PROD_PROJECT_PATTERN: str = r"^002_.*_(TWE|CEN|MYE|TSO500|PCAN|HRD|FH|SNP|TSOE|LYM)$"

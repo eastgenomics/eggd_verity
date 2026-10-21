@@ -33,6 +33,7 @@ from data.models import (
     tso500,
     vcfqc,
     verifybamid,
+    gen_stats,
 )
 
 # Interpret the config file for Python logging.
