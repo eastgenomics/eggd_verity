@@ -36,4 +36,8 @@ class GenStats(BaseMetrics, table=True):
 
         df = df.rename(columns=alias_mapping)
 
+        cols = [c for c in alias_mapping.values() if c in df.columns]
+        if not cols:
+            df = df.iloc[0:0]
+
         return df
