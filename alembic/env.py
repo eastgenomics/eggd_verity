@@ -14,27 +14,8 @@ config = context.config
 # Add the project root to the Python path to allow for absolute imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Import all your models here so Alembic can see them
-from data.models import (
-    bcl2fastq,
-    bclconvert,
-    choices,
-    fastqc,
-    happy,
-    interop,
-    picard,
-    reports,
-    rna_seqc,
-    samtools,
-    sentieon,
-    sex_check,
-    somalier,
-    sompy,
-    tso500,
-    vcfqc,
-    verifybamid,
-    gen_stats,
-)
+# Import models package to auto-discover and register all SQLModel metadata
+import data.models  # noqa: F401
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

@@ -7,25 +7,7 @@ import pandas as pd
 from sqlmodel import Session, create_engine, select
 
 from data.config import DATABASE_PATH
-from data.models import (
-    bcl2fastq,
-    bclconvert,
-    fastqc,
-    happy,
-    interop,
-    picard,
-    rna_seqc,
-    samtools,
-    sentieon,
-    sex_check,
-    somalier,
-    sompy,
-    tso500,
-    vcfqc,
-    verifybamid,
-    gen_stats,
-)
-from data.models.reports import Assay, Run, Sample
+from data.models import Assay, Run, Sample
 from data.models.sex_check import SexCheck
 
 logger = logging.getLogger(__name__)

@@ -6,26 +6,8 @@ from sqlalchemy import delete
 from sqlmodel import Session, col, create_engine, func, or_, select
 
 from data.config import DATABASE_PATH
-from data.models import (
-    bcl2fastq,
-    bclconvert,
-    fastqc,
-    gen_stats,
-    happy,
-    interop,
-    picard,
-    rna_seqc,
-    samtools,
-    sentieon,
-    sex_check,
-    somalier,
-    sompy,
-    tso500,
-    vcfqc,
-    verifybamid,
-)
+from data.models import Assay, Run, Sample
 from data.models.gen_stats import GenStats
-from data.models.reports import Assay, Run, Sample
 
 
 def clean_gen_stats(session: Session, dry_run: bool = True) -> int:

@@ -1,20 +1,6 @@
 from typing import Type
 
-# Import all metric models to ensure they are registered in BaseMetrics.__subclasses__
-from data.models import bcl2fastq, bclconvert, fastqc, happy, interop, picard
 from data.models import reports as models
-from data.models import (
-    rna_seqc,
-    samtools,
-    sentieon,
-    sex_check,
-    somalier,
-    sompy,
-    tso500,
-    vcfqc,
-    verifybamid,
-    gen_stats,
-)
 
 
 def get_metric_models() -> dict[str, Type[models.BaseMetrics]]:

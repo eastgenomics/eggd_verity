@@ -4,7 +4,7 @@ import random
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, Type
 
 import dxpy
 import fire
@@ -12,26 +12,7 @@ import pandas as pd
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
 
-from data.models import (
-    bcl2fastq,
-    bclconvert,
-    fastqc,
-    happy,
-    interop,
-    picard,
-    rna_seqc,
-    samtools,
-    sentieon,
-    sex_check,
-    somalier,
-    sompy,
-    tso500,
-    vcfqc,
-    verifybamid,
-    gen_stats,
-)
-from data.models.choices import SexKaryotype
-from data.models.reports import Assay, BaseMetrics, Run, Sample
+from data.models import Assay, BaseMetrics, Run, Sample
 from data.utils.dnanexus import login_to_dnanexus, find_dx_projects, get_multiqc_reports, get_project_metadata
 from data.utils.multiqc import parse_multiqc_section, read_multiqc_data
 from data.utils.utils import get_sample_metadata

@@ -5,28 +5,10 @@ import fire
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from data.config import DATABASE_PATH
-from data.models import (
-    bcl2fastq,
-    bclconvert,
-    fastqc,
-    happy,
-    interop,
-    picard,
-    rna_seqc,
-    samtools,
-    sentieon,
-    sex_check,
-    somalier,
-    sompy,
-    tso500,
-    vcfqc,
-    verifybamid,
-    gen_stats,
-)
-from data.models.reports import Sample
+from data.models import Sample
 
 
-SUFFIX_REGEX = re.compile(r"\.(bam|alignment|cram|hsmetrics)$", re.IGNORECASE)
+SUFFIX_REGEX = re.compile(r"\.(bam|alignment|cram|hsmetrics|star)$", re.IGNORECASE)
 
 
 def relink_child_foreign_keys(

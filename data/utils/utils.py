@@ -3,8 +3,6 @@ import re
 
 import pandas as pd
 
-from data.models.choices import SexKaryotype
-
 
 def standardise_column_names(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -68,7 +66,8 @@ def clean_df(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_sample_metadata(name: str) -> dict:
     """Extracts metadata from a sample name."""
-    
+    from data.models.choices import SexKaryotype
+
     control_pattern = r"-[0-9]+Q[0-9]+-|NA\d+.*|HG00.*"
     is_control = bool(re.search(control_pattern, name))
 

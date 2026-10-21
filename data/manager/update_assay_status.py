@@ -2,25 +2,7 @@ import fire
 from sqlmodel import Session, create_engine, select
 
 from data.config import DATABASE_PATH
-from data.models import (
-    bcl2fastq,
-    bclconvert,
-    fastqc,
-    happy,
-    interop,
-    picard,
-    rna_seqc,
-    samtools,
-    sentieon,
-    sex_check,
-    somalier,
-    sompy,
-    tso500,
-    vcfqc,
-    verifybamid,
-    gen_stats,
-)
-from data.models.reports import Assay
+from data.models import Assay
 
 LEGACY_ASSAY_NAMES = {"CEN", "FH", "SNP", "TSOE", "TWE"}
 

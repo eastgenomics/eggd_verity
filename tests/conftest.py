@@ -3,7 +3,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
 # Import models to ensure they are registered with SQLModel.metadata
-from data.models import reports  # noqa: F401
+import data.models  # noqa: F401
 
 
 @pytest.fixture(name="session")
