@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from .sentieon import SentieonAlignmentSummaryMetrics, SentieonInsertSize
     from .sex_check import SexCheck
     from .somalier import SomalierSexCheck
-    from .sompy import Sompy
+    from .sompy import Sompy, SompyCombined, SompyIndel, SompySnv
     from .tso500 import Tso500MetricsOutputDna
     from .vcfqc import VcfQcHetHom
     from .verifybamid import VerifyBamId
@@ -69,7 +69,6 @@ def _get_categorical_fields(cls) -> list[str]:
         "rg",
         "run_folder",
         "date",
-        "sequencer_id",
         "processed_at",
     }
 
@@ -237,6 +236,11 @@ class Sample(SQLModel, table=True):
         back_populates="sample"
     )
     sompy_metrics: list["Sompy"] = Relationship(back_populates="sample")
+    sompy_combined_metrics: list["SompyCombined"] = Relationship(
+        back_populates="sample"
+    )
+    sompy_indel_metrics: list["SompyIndel"] = Relationship(back_populates="sample")
+    sompy_snv_metrics: list["SompySnv"] = Relationship(back_populates="sample")
     tso500_metrics_output_dna: list["Tso500MetricsOutputDna"] = Relationship(
         back_populates="sample"
     )
@@ -311,7 +315,7 @@ class BaseMetrics(SQLModel):
             df[sample_col]
             .str.replace(r"_S\d+.*$", "", regex=True)
             .str.replace(
-                r"\.(?:bam|alignment|cram|hsmetrics)$", "", regex=True, case=False
+                r"\.(?:bam|alignment|cram|hsmetrics|star)$", "", regex=True, case=False
             )
         )
 
@@ -415,6 +419,7 @@ class BaseMetrics(SQLModel):
             if cls.metric_level == "sample":
                 sample_name = record.get(cls.index_col)
                 sample = get_or_create_sample(
+                    # pyrefly: ignore[unexpected-keyword]
                     session=session, name=sample_name, run_id=run.id
                 )
                 metric_data["sample_id"] = sample.id

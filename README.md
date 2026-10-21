@@ -67,3 +67,59 @@ For detailed instructions on managing the database and running the data pipeline
 Verity includes a comprehensive test suite using `pytest` to ensure data integrity and application stability.
 
 For instructions on setting up and running the tests, please refer to the Tests Documentation.
+
+## Building a Docker Image
+
+To build the Docker image for the verity, navigate to the project's root directory (the one containing the `Dockerfile`) and run the following command:
+
+```bash
+podman build -t docker.io/library/eggd_verity:latest .
+```
+
+This command will:
+- Use the `Dockerfile` to build a new image.
+- Tag the image with the name `eggd_verity`.
+
+## Saving the Image to a Compressed Archive
+
+Once the image is built, you can save it to a compressed tarball (`.tar.gz`) for easy distribution.
+
+```bash
+podman save --format docker-archive docker.io/library/eggd_verity:latest | gzip > verity_docker_image.tar.gz
+```
+
+You can now transfer the `verity_docker_image.tar.gz` file to the deployment server. Or Upload to DNAnexus
+
+```
+dx select proj-xx
+
+dx upload verity_docker_image.tar.gz
+```
+
+## Loading and Running the Application from the Archive
+
+On the deployment server, follow these steps:
+
+1.  **Load the Docker image** from the tarball:
+
+    ```bash
+    docker load < verity_docker_image.tar.gz
+    ```
+
+2.  **Run the application** in a new container:
+
+    ```bash
+    docker run -d -p 8050:8050 --name verity-container eggd_verity
+    ```
+    - `-d` runs the container in detached mode (in the background).
+    - `-p 8050:8050` maps port 8050 on the host to port 8050 in the container.
+    - `--name verity-container` gives the running container a memorable name.
+
+The application will now be accessible at `http://<server-ip>:8050`.
+
+## Managing the Container
+
+- **To view logs**: `docker logs verity-container`
+- **To stop the container**: `docker stop verity-container`
+- **To remove the container**: `docker rm verity-container`
+

@@ -1,0 +1,27 @@
+Z_ARCHIVED/
+RAW_DATA/
+CLEAN_DATA/
+VERITY_DATASET/
+
+# Ignore specified subdirectories inside 'data/'
+data/RAW_DATA/
+data/CLEAN_DATA/
+data/VERITY_DATASET/
+
+# Ignore Python virtual environment and cache
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Ignore Git and other development artifacts
+.git/
+.gitignore
+.dockerignore
+README.md
+
+*.log
+*.tar.gz
+samples.txt
+.xlsx*

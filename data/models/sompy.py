@@ -73,3 +73,89 @@ class Sompy(BaseMetrics, table=True):
     records_fp_region_size: int
     records_fp_rate: float
 
+
+class SompyCombined(BaseMetrics, table=True):
+    """Combined Som.py metrics."""
+
+    __tablename__ = "sompy_combined"
+    multiqc_section_names: ClassVar[list[str]] = ["multiqc_sompy_combined_data"]
+    index_col: ClassVar[str] = "sample_id"
+
+    sample: "Sample" = Relationship(back_populates="sompy_combined_metrics")
+
+    total_truth_combined: int
+    total_query_combined: int
+    tp_combined: int
+    fp_combined: int
+    fn_combined: int
+    unk_combined: int
+    ambi_combined: int
+    recall_combined: float
+    recall_lower_combined: float
+    recall_upper_combined: float
+    recall2_combined: float
+    precision_combined: float
+    precision_lower_combined: float
+    precision_upper_combined: float
+    na_combined: float
+    ambiguous_combined: float
+    fp_region_size_combined: float
+    fp_rate_combined: float
+
+
+class SompyIndel(BaseMetrics, table=True):
+    """Indel Som.py metrics."""
+
+    __tablename__ = "sompy_indel"
+    multiqc_section_names: ClassVar[list[str]] = ["multiqc_sompy_indel_data"]
+    index_col: ClassVar[str] = "sample_id"
+
+    sample: "Sample" = Relationship(back_populates="sompy_indel_metrics")
+
+    total_truth_indel: int
+    total_query_indel: int
+    tp_indel: int
+    fp_indel: int
+    fn_indel: int
+    unk_indel: int
+    ambi_indel: int
+    recall_indel: float
+    recall_lower_indel: float
+    recall_upper_indel: float
+    recall2_indel: float
+    precision_indel: float
+    precision_lower_indel: float
+    precision_upper_indel: float
+    na_indel: float
+    ambiguous_indel: float
+    fp_region_size_indel: float
+    fp_rate_indel: float
+
+
+class SompySnv(BaseMetrics, table=True):
+    """SNV Som.py metrics."""
+
+    __tablename__ = "somp_snv"
+    multiqc_section_names: ClassVar[list[str]] = ["multiqc_sompy_snv_data"]
+    index_col: ClassVar[str] = "sample_id"
+
+    sample: "Sample" = Relationship(back_populates="sompy_snv_metrics")
+
+    total_truth_snv: int
+    total_query_snv: int
+    tp_snv: int
+    fp_snv: int
+    fn_snv: int
+    unk_snv: int
+    ambi_snv: int
+    recall_snv: float
+    recall_lower_snv: float
+    recall_upper_snv: float
+    recall2_snv: float
+    precision_snv: float
+    precision_lower_snv: float
+    precision_upper_snv: float
+    na_snv: float
+    ambiguous_snv: float
+    fp_region_size_snv: float
+    fp_rate_snv: float

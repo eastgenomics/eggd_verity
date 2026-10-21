@@ -46,17 +46,17 @@ Whenever a change is made to a `SQLModel` class in the `data/models/` directory 
 
 ## Running the ETL Pipeline
 
-The ETL (Extract, Transform, Load) pipeline scans DNAnexus for MultiQC JSON reports, processes them, and loads the metrics into the local SQLite database.
+The ETL (Extract, Transform, Load) pipeline scans DNAnexus for MultiQC JSON reports, processes them, and loads the metrics into verity database.
 
 ### First Run & Archival Handling
 
 When running the pipeline for the first time (or on new projects), it scans for relevant files. **If any required reports are found to be archived on DNAnexus, the pipeline will automatically request that they be unarchived and then exit.**
 
-You will need to wait for the unarchival process to complete (times vary by cloud provider) and then **rerun the pipeline**. On the subsequent run, the files will be accessible, and data ingestion will proceed.
+You will need to wait for the unarchival process to complete and then **rerun the pipeline**. On the subsequent run, the files will be accessible, and data ingestion will proceed.
 
 ### Execution & Deployment
 
-In a deployment environment, the pipeline is typically scheduled using `cron` or a `systemd` timer to run periodically (e.g., nightly) to keep the dashboard up to date. However, it can be run manually from the command line for development, testing, or ad-hoc updates.
+In a deployment environment, the pipeline is typically scheduled using `cron` or a `systemd` timer to run periodically (e.g. every 6 hours) to keep the database up to date. However, it can be run manually from the command line for development, testing, or ad-hoc updates.
 
 ### Command Line Options
 
@@ -69,7 +69,7 @@ python -m data.pipeline [OPTIONS]
 **Examples:**
 
 - **Run on specific projects:**  
-  `python -m data.pipeline --project_ids='["project-xxxx", "project-yyyy"]'`  
+  `python -m data.pipeline "project-xxxx" "project-yyyy"`
   Useful for testing specific datasets or updating a single run.
 
 - **Run on recent projects:**  
@@ -87,8 +87,7 @@ python -m data.pipeline [OPTIONS]
 
 The legacy status manager marks configured assay names as inactive. The
 initial list is `CEN`, `FH`, `SNP`, `TSOE`, and `TWE`; it can be extended in
-`data/manager/update_assay_status.py`. Matching names are updated across all
-reference genomes.
+`data/manager/update_assay_status.py`. 
 
 The command is a dry run by default:
 
@@ -105,4 +104,4 @@ python -m data.manager.update_assay_status --dry_run=False
 The Dashboard excludes inactive assays by default. Its session-persistent
 `Include legacy assays` switch includes them in the Dashboard summary table
 and charts when enabled. Trends, Correlation, Explore Data, and Raincloud
-Plot are not filtered by this Dashboard-only setting.
+Plot are not filtered by this setting.
