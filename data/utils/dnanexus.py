@@ -26,8 +26,6 @@ def login_to_dnanexus(token: str = DX_TOKEN) -> None:
     SystemExit
         If the login fails.
     """
-    print(token)
-
     DX_SECURITY_CONTEXT = {
         "auth_token_type": "Bearer",
         "auth_token": token,
@@ -113,7 +111,7 @@ def get_multiqc_reports(project_ids: list[str]) -> pd.DataFrame | None:
     unarchiving, and returns a DataFrame of the results.
     """
     if not project_ids:
-        logger.warning("No project IDs provided to get_multiqc_reports.")
+        logger.warning("No project IDs provided to get_multiqc_reports. Aborting...")
         return None
     
     logger.info(f"Searching for MultiQC reports in {len(project_ids)} projects...")

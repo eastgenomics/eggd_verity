@@ -4,9 +4,9 @@ from collections import defaultdict
 
 import fire
 import pandas as pd
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, select
 
-from data.config import DATABASE_PATH
+from data.database import get_engine
 from data.models import Assay, Run, Sample
 from data.models.sex_check import SexCheck
 
@@ -106,7 +106,7 @@ def main(
     
     print(f"[INFO] Found {len(specimen_ids)} specimen IDs in {input_path}.")
 
-    engine = create_engine(f"sqlite:///{DATABASE_PATH}")
+    engine = get_engine()
     with Session(engine) as session:
         result_df = build_sex_check_report(session, specimen_ids)
 

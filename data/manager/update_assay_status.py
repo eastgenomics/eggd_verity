@@ -1,7 +1,7 @@
 import fire
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, select
 
-from data.config import DATABASE_PATH
+from data.database import get_engine
 from data.models import Assay
 
 LEGACY_ASSAY_NAMES = {"CEN", "FH", "SNP", "TSOE", "TWE"}
@@ -36,7 +36,7 @@ def update_legacy_assays(session: Session, dry_run: bool = True) -> int:
 
 
 def main(dry_run: bool = True) -> None:
-    engine = create_engine(f"sqlite:///{DATABASE_PATH}")
+    engine = get_engine()
     with Session(engine) as session:
         update_legacy_assays(session, dry_run=dry_run)
 

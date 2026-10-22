@@ -2,7 +2,7 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import pool
 from sqlmodel import SQLModel
 
 from alembic import context
@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import models package to auto-discover and register all SQLModel metadata
 import data.models  # noqa: F401
+from data.database import build_engine, resolve_database_url  # noqa: E402
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -45,7 +46,7 @@ def run_migrations_offline() -> None:
 
     """
     context.configure(
-        url=config.get_main_option("sqlalchemy.url"),
+        url=resolve_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -63,11 +64,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = build_engine(resolve_database_url(), poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(

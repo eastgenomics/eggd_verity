@@ -1,10 +1,9 @@
-from sqlmodel import Session, create_engine
+from sqlmodel import Session
 
-DATABASE_FILE = "verity_db.sqlite3"
-DATABASE_URI = f"sqlite:///data/{DATABASE_FILE}"
-
-engine = create_engine(DATABASE_URI)
+from data.database import ensure_database_available, get_engine, resolve_database_url
 
 
-def get_session():
-    return Session(engine)
+def get_session() -> Session:
+    database_url = resolve_database_url()
+    ensure_database_available(database_url)
+    return Session(get_engine(database_url))

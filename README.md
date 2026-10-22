@@ -62,6 +62,28 @@ Use HTTPS in deployed environments and inject credentials through the environmen
 
 For detailed instructions on managing the database and running the data pipeline, refer to the **Data Module Documentation**.
 
+### Database Configuration
+
+Verity supports SQLite (default) and PostgreSQL. The app, ETL pipeline,
+manager scripts and Alembic all read the same settings (see `data/database.py`):
+
+| Variable | Purpose |
+| --- | --- |
+| `VERITY_DATABASE_URL` | Full SQLAlchemy URL. Takes precedence when set. |
+| `VERITY_DB_PATH` | Path to the SQLite file, used when no URL is set. Relative paths resolve from the project root. Default: `data/verity_db.sqlite3`. |
+
+```bash
+# SQLite (default, nothing to set), or a different file:
+VERITY_DB_PATH=/path/to/verity_db.sqlite3
+
+# PostgreSQL (postgres:// and postgresql:// use the bundled psycopg driver):
+VERITY_DATABASE_URL=postgresql://user:password@host:5432/verity
+```
+
+Only `sqlite` and `postgresql` URLs are accepted. URL-encode special
+characters in passwords (e.g. `@` as `%40`). Create or upgrade the schema on
+a new database with `alembic upgrade head`.
+
 ## Testing
 
 Verity includes a comprehensive test suite using `pytest` to ensure data integrity and application stability.
@@ -70,56 +92,119 @@ For instructions on setting up and running the tests, please refer to the Tests 
 
 ## Building a Docker Image
 
-To build the Docker image for the verity, navigate to the project's root directory (the one containing the `Dockerfile`) and run the following command:
+The image contains only code. The database is **not** baked in (it is excluded
+by `.dockerignore`), so a database update never requires a new image. Neither
+is `.env`: pass settings at runtime with `-e` or `--env-file`.
+
+From the project root:
 
 ```bash
 podman build -t docker.io/library/eggd_verity:latest .
 ```
 
-This command will:
-- Use the `Dockerfile` to build a new image.
-- Tag the image with the name `eggd_verity`.
-
 ## Saving the Image to a Compressed Archive
-
-Once the image is built, you can save it to a compressed tarball (`.tar.gz`) for easy distribution.
 
 ```bash
 podman save --format docker-archive docker.io/library/eggd_verity:latest | gzip > verity_docker_image.tar.gz
 ```
 
-You can now transfer the `verity_docker_image.tar.gz` file to the deployment server. Or Upload to DNAnexus
+## Packaging the SQLite Database
 
+Compress the database separately from the image. Make sure the ETL pipeline is
+not writing to it while you do this.
+
+```bash
+tar -czf verity_db.tar.gz -C data verity_db.sqlite3
 ```
+
+The archive must contain `verity_db.sqlite3` at its top level, which is where
+the container expects it (`/db/verity_db.sqlite3`).
+
+## Uploading to DNAnexus
+
+```bash
 dx select proj-xx
-
-dx upload verity_docker_image.tar.gz
+dx upload verity_docker_image.tar.gz   # only when the code changed
+dx upload verity_db.tar.gz             # whenever the data changed
 ```
 
-## Loading and Running the Application from the Archive
+## Running the Application
 
-On the deployment server, follow these steps:
+Inside the container the database is read from `/db/verity_db.sqlite3`
+(`VERITY_DB_PATH`). Mount the directory holding it at `/db`. Mount it
+read-write: SQLite writes journal files next to the database. If the file is
+missing, requests fail with a clear "SQLite database not found" error instead
+of serving an empty database.
 
-1.  **Load the Docker image** from the tarball:
+### Docker (DNAnexus HTTP app or any Linux host)
 
-    ```bash
-    docker load < verity_docker_image.tar.gz
-    ```
+Run this from the directory containing `verity_docker_image.tar.gz` and
+`verity_db.tar.gz` (e.g. after `dx download`). It needs only `bash`, `tar` and
+`docker`. Settings are passed through from the calling environment: export
+`VERITY_SECRET_KEY` and, if auth is enabled, `VERITY_USERNAME` and `VERITY_PASSWORD`.
 
-2.  **Run the application** in a new container:
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-    ```bash
-    docker run -d -p 8050:8050 --name verity-container eggd_verity
-    ```
-    - `-d` runs the container in detached mode (in the background).
-    - `-p 8050:8050` maps port 8050 on the host to port 8050 in the container.
-    - `--name verity-container` gives the running container a memorable name.
+IMAGE_ARCHIVE="verity_docker_image.tar.gz"
+DB_ARCHIVE="verity_db.tar.gz"
+DB_DIR="$PWD/verity_db"
+
+docker load -i "$IMAGE_ARCHIVE"
+
+mkdir -p "$DB_DIR"
+tar -xzf "$DB_ARCHIVE" -C "$DB_DIR"
+if [ ! -f "$DB_DIR/verity_db.sqlite3" ]; then
+    echo "verity_db.sqlite3 not found in $DB_ARCHIVE" >&2
+    exit 1
+fi
+
+docker rm -f verity-container >/dev/null 2>&1 || true
+docker run -d \
+    --name verity-container \
+    --restart unless-stopped \
+    -p 8050:8050 \
+    -v "$DB_DIR:/db" \
+    -e VERITY_SECRET_KEY \
+    -e VERITY_AUTH_ENABLED \
+    -e VERITY_USERNAME \
+    -e VERITY_PASSWORD \
+    eggd_verity:latest
+```
+
+- `-v "$DB_DIR:/db"` mounts the extracted database into the container.
+- `-e NAME` (without a value) copies that variable from the calling environment.
+  Unset variables are skipped. Use `--env-file verity.env` instead if you prefer a file.
 
 The application will now be accessible at `http://<server-ip>:8050`.
 
+### Podman (local development)
+
+```bash
+podman run -d --name verity-container -p 8050:8050 \
+    --env-file .env \
+    -v "$PWD/data:/db:z" \
+    docker.io/library/eggd_verity:latest
+```
+
+The `:z` suffix relabels the mount for SELinux (Fedora/RHEL). Without it the
+container gets "permission denied". Docker on Ubuntu does not need it.
+
+### Using PostgreSQL instead of SQLite
+
+No volume is needed. Point the container at the server and create the schema once:
+
+```bash
+docker run --rm -e VERITY_DATABASE_URL eggd_verity:latest alembic upgrade head
+docker run -d --name verity-container -p 8050:8050 \
+    -e VERITY_DATABASE_URL -e VERITY_SECRET_KEY \
+    eggd_verity:latest
+```
+
 ## Managing the Container
+Replace `docker` with `podman` if using podman
 
 - **To view logs**: `docker logs verity-container`
 - **To stop the container**: `docker stop verity-container`
 - **To remove the container**: `docker rm verity-container`
-

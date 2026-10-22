@@ -24,7 +24,7 @@ Before running the pipeline for the first time, you must initialize the database
     alembic upgrade head
     ```
  
-The database file (`verity_db.sqlite3`) will be created, and you can now run the ETL pipeline.
+The database (by default `data/verity_db.sqlite3`; see *Database Configuration* in the main README to use another file or PostgreSQL) will be created, and you can now run the ETL pipeline.
 
 ### Future Schema Changes
 

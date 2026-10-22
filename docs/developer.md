@@ -11,7 +11,7 @@ Verity is built using a modern Python stack designed for type safety, performanc
     -   **[SQLAlchemy](https://www.sqlalchemy.org/)**: The underlying ORM handling database sessions and core SQL generation.
     -   **[Pydantic](https://docs.pydantic.dev/)**: Handles data validation and settings management.
     -   **[Alembic](https://alembic.sqlalchemy.org/)**: Manages database schema migrations.
-    -   **SQLite**: The default relational database engine (serverless, file-based).
+    -   **SQLite**: The default relational database engine (serverless, file-based). **PostgreSQL** is also supported via `VERITY_DATABASE_URL`.
 
 -   **Frontend / Dashboard**:
     -   **[Dash](https://dash.plotly.com/)**: A Python framework for building analytical web applications.
@@ -30,10 +30,12 @@ Verity is built using a modern Python stack designed for type safety, performanc
 Verity currently uses **SQLite** (`verity_db.sqlite3`) for simplicity and ease of deployment. Since the application is read-heavy (dashboard) with periodic batch writes (ETL), SQLite performs exceptionally well.
 
 **Changing the Database**:
-Because Verity uses SQLModel (and thus SQLAlchemy), switching to PostgreSQL or MySQL is straightforward.
-1.  Update the `DATABASE_URI` in `app/db.py` and `data/db_init.py`.
-2.  Install the appropriate driver (e.g. `psycopg2`).
-3.  Run Alembic migrations to initialize the schema on the new server.
+SQLite and PostgreSQL are supported. The database URL is resolved in one place,
+`data/database.py`, and used by the app, ETL pipeline, manager scripts and Alembic.
+1.  Set `VERITY_DATABASE_URL` (e.g. `postgresql://user:pass@host:5432/verity`), or `VERITY_DB_PATH` for a different SQLite file.
+2.  Run `alembic upgrade head` to create the schema on the new database.
+
+Always get an engine via `data.database.get_engine()` (or `app.db.get_session()` in the app). Never call `create_engine` with a hardcoded URL.
 
 ### Data Models (`data/models/`)
 

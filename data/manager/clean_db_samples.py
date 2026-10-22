@@ -2,9 +2,9 @@ import re
 from typing import List
 
 import fire
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, select
 
-from data.config import DATABASE_PATH
+from data.database import get_engine
 from data.models import Sample
 
 
@@ -112,7 +112,7 @@ def clean_sample_suffixes(session: Session, dry_run: bool = True):
 
 
 def main(dry_run: bool = True) -> None:
-    engine = create_engine(f"sqlite:///{DATABASE_PATH}")
+    engine = get_engine()
 
     with Session(engine) as session:
         clean_sample_suffixes(session, dry_run=dry_run)

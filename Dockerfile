@@ -25,7 +25,13 @@ WORKDIR /app
 # Copy the virtual environment from the builder stage
 COPY --from=builder /opt/venv /opt/venv
 
-# Copy the application code
+# The SQLite database is mounted at runtime, not baked into the image:
+#   docker run -v /path/to/db_dir:/db ...
+# Override with VERITY_DB_PATH or use Postgres via VERITY_DATABASE_URL.
+ENV VERITY_DB_PATH=/db/verity_db.sqlite3
+RUN mkdir -p /db
+
+# Copy the application code (the database is excluded via .dockerignore)
 COPY . .
 
 # Expose the port the app runs on

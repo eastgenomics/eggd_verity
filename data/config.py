@@ -70,8 +70,6 @@ IGNORE_SECTIONS: list[str] = [
 ]
 
 PROD_PROJECT_PATTERN: str = r"^002_.*_(TWE|CEN|MYE|TSO500|PCAN|HRD|FH|SNP|TSOE|LYM)$"
-DATABASE_FILE: str = "verity_db.sqlite3"
-DATABASE_PATH: Path = PROJECT_ROOT / "data" / DATABASE_FILE
 MAX_WORKERS: int = 16
 
 #DX_TOKEN: str = secrets["DX_TOKEN"]
