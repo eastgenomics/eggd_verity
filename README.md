@@ -208,3 +208,11 @@ Replace `docker` with `podman` if using podman
 - **To view logs**: `docker logs verity-container`
 - **To stop the container**: `docker stop verity-container`
 - **To remove the container**: `docker rm verity-container`
+
+## TODO
+
+- **Duplicate run folder names.** `Run.run_folder` is not unique. A small number of runs
+  share a folder name because the data source reuses them, and Verity ingests them as
+  is. Pages that put runs on a category axis (Trends, Raincloud) merge runs with the
+  same folder name into one x position. Decide on a fix: deduplicate at the source, add
+  a unique constraint, or plot by run id with the folder name as the label.

@@ -16,13 +16,25 @@ def create_trends_figure(
     is_run_level: bool,
 ) -> go.Figure:
     """
-    Generates the trends plot figure.
+    Generates the trends plot figure, with one x axis category per run.
     """
-    plot_func = px.scatter if plot_type == "scatter" else px.line
+    df = df.copy()
     is_multi_metric = len(metric_names) > 1
+    is_box = plot_type == "box"
+    hover_name = "sample_name" if not is_run_level else "run_folder"
+
+    # Runs arrive sorted by date. Fix the category order explicitly, otherwise
+    # Plotly orders runs by first appearance across traces when grouping is on.
+    ordered_runs = list(df["run_folder"].unique())
+
+    def plot(data, **kwargs):
+        if is_box:
+            # px.box has no symbol argument
+            kwargs.pop("symbol", None)
+            return px.box(data, notched=True, points="all", **kwargs)
+        return px.scatter(data, **kwargs)
 
     if is_multi_metric:
-        hover_name = "sample_name" if not is_run_level else "run_folder"
         id_vars = ["date", "run_folder"]
         if not is_run_level:
             id_vars.append("sample_name")
@@ -41,30 +53,30 @@ def create_trends_figure(
             lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0
         )
 
-        fig = plot_func(
+        fig = plot(
             df_long,
-            x="date",
+            x="run_folder",
             y="Value",
             color="Metric",
             symbol=symbol_col,
             hover_name=hover_name,
-            custom_data=["run_folder", "Metric"],
+            custom_data=["run_folder", "date", "Metric"],
+            category_orders={"run_folder": ordered_runs},
             title=f"Trends for {tool_name}",
-            labels={"Value": "Value (Z-score)", "date": "Run Date"},
+            labels={"Value": "Value (Z-score)", "run_folder": "Run"},
         )
         fig.update_traces(
             hovertemplate=(
                 "<b>%{hovertext}</b><br><br>"
-                "Run Folder: %{customdata[0]}<br>"
-                "Metric: %{customdata[1]}<br>"
-                "Date: %{x}<br>"
+                "Run: %{customdata[0]}<br>"
+                "Date: %{customdata[1]}<br>"
+                "Metric: %{customdata[2]}<br>"
                 "Value (Z-score): %{y:.3f}<extra></extra>"
             )
         )
     else:
         metric_name = metric_names[0]
-        hover_name = "sample_name" if not is_run_level else "run_folder"
-        df.rename(columns={metric_name: "metric_value"}, inplace=True)
+        df = df.rename(columns={metric_name: "metric_value"})
         metric_label = metric_name.replace("_", " ").title()
 
         if yaxis_transform == "standardise":
@@ -74,22 +86,23 @@ def create_trends_figure(
             )
             metric_label = f"{metric_label} (Z-score)"
 
-        fig = plot_func(
+        fig = plot(
             df,
-            x="date",
+            x="run_folder",
             y="metric_value",
             color=color_col,
             symbol=symbol_col,
             hover_name=hover_name,
-            custom_data=["run_folder"],
+            custom_data=["run_folder", "date"],
+            category_orders={"run_folder": ordered_runs},
             title=f"Trend for {tool_name}: {metric_label}",
-            labels={"metric_value": metric_label, "date": "Run Date"},
+            labels={"metric_value": metric_label, "run_folder": "Run"},
         )
         fig.update_traces(
             hovertemplate=(
                 f"<b>%{{hovertext}}</b><br><br>"
-                f"Run Folder: %{{customdata[0]}}<br>"
-                f"Date: %{{x}}<br>"
+                f"Run: %{{customdata[0]}}<br>"
+                f"Date: %{{customdata[1]}}<br>"
                 f"{metric_label}: %{{y:.3f}}<extra></extra>"
             )
         )
@@ -119,7 +132,11 @@ def create_trends_figure(
         if yaxis_transform == "log":
             fig.update_yaxes(type="log")
 
+    if is_box:
+        # Hover on the sample points only; the custom template has no box stats
+        fig.update_traces(hoveron="points")
     fig.update_traces(marker=dict(size=marker_size, opacity=0.7))
+    fig.update_xaxes(tickangle=-45)
     fig.update_layout(
         margin=dict(l=20, r=20, t=50, b=20),
         legend_title_text="Group By",

@@ -2,7 +2,7 @@ import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
-from dash import Input, Output, callback, dcc, html, no_update
+from dash import Input, Output, State, callback, dcc, html, no_update
 
 from app.components import (
     create_plot_page_layout,
@@ -53,7 +53,7 @@ controls = dbc.Card(
             id="plot-type-radio",
             options=[
                 {"label": "Scatter", "value": "scatter"},
-                {"label": "Line", "value": "line"},
+                {"label": "Box", "value": "box"},
             ],
             value="scatter",
             inline=True,
@@ -100,7 +100,7 @@ layout = html.Div(
 
 # Callbacks
 
-register_hover_callbacks("trends")
+register_hover_callbacks("trends", extra_labels=("Date", "Metric"))
 
 
 @callback(Output("assay-dropdown", "options"), Input("assay-dropdown", "id"))
@@ -145,26 +145,40 @@ def reset_metric_on_tool_change(_):
     Output("stats-lines-checklist", "disabled"),
     Output("color-by-dropdown", "disabled"),
     Input("metric-dropdown", "value"),
+    State("yaxis-transform-radio", "disabled"),
 )
-def manage_plot_options(selected_metrics):
+def manage_plot_options(selected_metrics, transform_was_forced):
     """Disables plot options that are not applicable to multi-metric view."""
     is_multi_metric = selected_metrics and len(selected_metrics) > 1
     if is_multi_metric:
         # Force Z-score, disable radio, disable/uncheck stats, disable colour dropdown
         return "standardise", True, [], True, True
     else:
-        # Re-enable all options for single-metric view
-        return dash.no_update, False, dash.no_update, False, False
+        # Re-enable all options for single-metric view. If Z-score was forced by
+        # the multi-metric view, go back to raw values.
+        transform = "linear" if transform_was_forced else dash.no_update
+        return transform, False, dash.no_update, False, False
+
+
+@callback(Output("symbol-by-dropdown", "disabled"), Input("plot-type-radio", "value"))
+def manage_symbol_option(plot_type):
+    """Box plots have no marker symbols, so disable 'Symbol By' for them."""
+    return plot_type == "box"
 
 
 @callback(
     Output("color-by-dropdown", "options"),
     Output("symbol-by-dropdown", "options"),
-    Input("color-by-dropdown", "id"),
+    Input("tool-dropdown", "value"),
 )
-def populate_grouping_options(_):
-    """Populates the 'Color By' and 'Symbol By' dropdowns."""
+def populate_grouping_options(tool_name):
+    """
+    Populates the 'Color By' and 'Symbol By' dropdowns. Sample fields are left
+    out for run level tools, which have no per sample values.
+    """
     options = get_plot_grouping_options()
+    if tool_name and TOOL_MODEL_MAP[tool_name].metric_level == "run":
+        options.pop("Sample", None)
 
     formatted_options = []
 

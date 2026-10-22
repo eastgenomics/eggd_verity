@@ -17,65 +17,95 @@ dash.register_page(__name__, path="/plot", name="Raincloud Plot")
 TOOL_MODEL_MAP = get_metric_models()
 
 
-controls = dbc.Card(
-    [
-        dbc.Label("1. Select Assay(s)", className="fw-bold"),
-        dcc.Dropdown(
-            id="plot-assay-dropdown",
-            placeholder="Select one or more assays...",
-            multi=True,
-        ),
-        dbc.Label("2. Select QC Tool", className="fw-bold mt-2"),
-        dcc.Dropdown(id="plot-tool-dropdown", placeholder="Select a tool..."),
-        dbc.Label("3. Select Metric", className="fw-bold mt-2"),
-        dcc.Dropdown(id="plot-metric-dropdown", placeholder="Select a metric..."),
-        dbc.Label("4. Number of Runs", className="fw-bold mt-2"),
-        dcc.Input(
-            id="plot-num-runs-input",
-            type="number",
-            min=1,
-            max=100,
-            value=10,
-            placeholder="Enter number of runs...",
-        ),
-        dbc.Label("5. Sample Name Filter (Regex)", className="fw-bold mt-2"),
-        dcc.Input(
-            id="plot-sample-filter-input",
-            type="text",
-            placeholder="Enter regex pattern...",
-        ),
-        html.Br(),
-        dbc.Label("6. Colour By", className="fw-bold mt-2"),
-        dcc.Dropdown(id="plot-color-by-dropdown", placeholder="Select a category..."),
-        html.Hr(),
-        dbc.Label("7. Customise Plot Elements", className="fw-bold mt-2"),
-        html.Br(),
-        dbc.Label("Violin Side", className="mt-2"),
-        dbc.RadioItems(
-            id="plot-violin-side-radio",
-            options=[
-                {"label": "Right", "value": "positive"},
-                {"label": "Left", "value": "negative"},
-                {"label": "Both", "value": "both"},
-            ],
-            value="positive",
-            inline=True,
-        ),
-        dbc.Label("Visible Elements", className="mt-2"),
-        dbc.Checklist(
-            id="plot-components-checklist",
-            options=[
-                {"label": "Violin (Cloud)", "value": "violin"},
-                {"label": "Box Plot", "value": "box"},
-                {"label": "Points (Rain)", "value": "points"},
-            ],
-            value=["violin", "box", "points"],
-            inline=True,
-        ),
-    ],
-    body=True,
-    className="mb-4",
-)
+DEFAULT_COLOR_BY = "run.sequencer_id"
+DEFAULT_PLOT_COMPONENTS = ["violin", "box", "points"]
+
+
+def create_controls(
+    assay=None,
+    tool=None,
+    metric=None,
+    num_runs=10,
+    sample_filter=None,
+    color_by=DEFAULT_COLOR_BY,
+    violin_side="positive",
+    plot_components=DEFAULT_PLOT_COMPONENTS,
+):
+    """
+    Builds the controls card with the given initial values. Built per request so
+    that one user's URL parameters never leak into another user's page.
+    """
+    return dbc.Card(
+        [
+            dbc.Label("1. Select Assay(s)", className="fw-bold"),
+            dcc.Dropdown(
+                id="plot-assay-dropdown",
+                placeholder="Select one or more assays...",
+                multi=True,
+                value=assay,
+            ),
+            dbc.Label("2. Select QC Tool", className="fw-bold mt-2"),
+            dcc.Dropdown(
+                id="plot-tool-dropdown", placeholder="Select a tool...", value=tool
+            ),
+            dbc.Label("3. Select Metric", className="fw-bold mt-2"),
+            dcc.Dropdown(
+                id="plot-metric-dropdown",
+                placeholder="Select a metric...",
+                value=metric,
+            ),
+            dbc.Label("4. Number of Runs", className="fw-bold mt-2"),
+            dcc.Input(
+                id="plot-num-runs-input",
+                type="number",
+                min=1,
+                max=100,
+                value=num_runs,
+                placeholder="Enter number of runs...",
+            ),
+            dbc.Label("5. Sample Name Filter (Regex)", className="fw-bold mt-2"),
+            dcc.Input(
+                id="plot-sample-filter-input",
+                type="text",
+                placeholder="Enter regex pattern...",
+                value=sample_filter or "",
+            ),
+            html.Br(),
+            dbc.Label("6. Colour By", className="fw-bold mt-2"),
+            dcc.Dropdown(
+                id="plot-color-by-dropdown",
+                placeholder="Colour by run",
+                value=color_by,
+            ),
+            html.Hr(),
+            dbc.Label("7. Customise Plot Elements", className="fw-bold mt-2"),
+            html.Br(),
+            dbc.Label("Violin Side", className="mt-2"),
+            dbc.RadioItems(
+                id="plot-violin-side-radio",
+                options=[
+                    {"label": "Right", "value": "positive"},
+                    {"label": "Left", "value": "negative"},
+                    {"label": "Both", "value": "both"},
+                ],
+                value=violin_side,
+                inline=True,
+            ),
+            dbc.Label("Visible Elements", className="mt-2"),
+            dbc.Checklist(
+                id="plot-components-checklist",
+                options=[
+                    {"label": "Violin (Cloud)", "value": "violin"},
+                    {"label": "Box Plot", "value": "box"},
+                    {"label": "Points (Rain)", "value": "points"},
+                ],
+                value=plot_components,
+                inline=True,
+            ),
+        ],
+        body=True,
+        className="mb-4",
+    )
 
 
 def create_plot_page_layout(controls_component, plot_id, hover_data_box_id, title):
@@ -100,7 +130,7 @@ def create_plot_page_layout(controls_component, plot_id, hover_data_box_id, titl
                     ),
                     dbc.Col(html.H2(title), width="auto"),
                     dbc.Col(
-                        html.Pre(id=hover_data_box_id, className="text-white"),
+                        html.Div(id=hover_data_box_id),
                         width="auto",
                     ),
                 ],
@@ -114,7 +144,7 @@ def create_plot_page_layout(controls_component, plot_id, hover_data_box_id, titl
 
 # Callbacks
 
-register_hover_callbacks("plot")
+register_hover_callbacks("plot", graph_id="raincloud-plot")
 
 
 @callback(
@@ -162,11 +192,16 @@ def populate_metrics(tool_name):
 
 
 @callback(
-    Output("plot-color-by-dropdown", "options"), Input("plot-color-by-dropdown", "id")
+    Output("plot-color-by-dropdown", "options"), Input("plot-tool-dropdown", "value")
 )
-def populate_grouping_options(_):
-    """Populates the 'Color By' dropdown."""
+def populate_grouping_options(tool_name):
+    """
+    Populates the 'Color By' dropdown. Sample fields are left out for run level
+    tools, which have no per sample values.
+    """
     options = get_plot_grouping_options()
+    if tool_name and TOOL_MODEL_MAP[tool_name].metric_level == "run":
+        options.pop("Sample", None)
 
     formatted_options = []
 
@@ -230,11 +265,22 @@ def update_raincloud_plot(
     # Apply sample name filter if provided
     if sample_filter:
         try:
-            df = df[df["sample_name"].str.contains(sample_filter, regex=True)]
+            df = df[
+                df["sample_name"].str.contains(sample_filter, regex=True, na=False)
+            ]
         except Exception:
             return create_warning_figure(
                 "Invalid regex pattern. Please correct the sample name filter."
             )
+        if df.empty:
+            return create_warning_figure(
+                "No samples match the sample name filter."
+            )
+
+    color_label = None
+    if grouping_args["color"]:
+        model_name, field_name = color_by.split(".")
+        color_label = f"{model_name.title()}: {field_name.replace('_', ' ').title()}"
 
     return create_raincloud_figure(
         df,
@@ -244,6 +290,7 @@ def update_raincloud_plot(
         grouping_args["color"],
         violin_side,
         plot_components,
+        color_label,
     )
 
 
@@ -251,52 +298,50 @@ def layout(
     assay: list[str] | str | None = None,
     tool: str | None = None,
     metric: str | None = None,
-    num_runs: int = 10,
+    num_runs: int | str | None = 10,
     sample_filter: str | None = None,
-    color_by: str | None = None,
+    color_by: str | None = DEFAULT_COLOR_BY,
     violin_side: str = "positive",
-    plot_components: list[str] | None = None,
+    plot_components: list[str] | str | None = None,
     **_,
 ):
     """
     Defines the layout for the plot page, accepting query parameters to set
     the initial state of the controls.
     """
-    # Set default values for multi-select checklists
+    # Query parameters arrive as strings, or as a list when a key repeats
     if plot_components is None:
-        plot_components = ["violin", "box", "points"]
+        plot_components = DEFAULT_PLOT_COMPONENTS
+    elif isinstance(plot_components, str):
+        plot_components = [plot_components]
+    # An empty value in the URL means every element was unchecked
+    plot_components = [c for c in plot_components if c]
 
-    # Ensure assay is a list for multi-select dropdown
     if isinstance(assay, str):
         assay = [assay]
 
-    # Find the controls in the tree and update their values
-    for child in controls.children:
-        if not hasattr(child, "id"):
-            continue
-
-        if child.id == "plot-assay-dropdown":
-            child.value = assay
-        elif child.id == "plot-tool-dropdown":
-            child.value = tool
-        elif child.id == "plot-metric-dropdown":
-            child.value = metric
-        elif child.id == "plot-num-runs-input":
-            child.value = num_runs
-        elif child.id == "plot-sample-filter-input":
-            child.value = sample_filter
-        elif child.id == "plot-color-by-dropdown":
-            child.value = color_by
-        elif child.id == "plot-violin-side-radio":
-            child.value = violin_side
-        elif child.id == "plot-components-checklist":
-            child.value = plot_components
+    try:
+        num_runs = int(num_runs) if num_runs not in (None, "") else None
+    except ValueError:
+        num_runs = 10
 
     page_layout = html.Div(
         [
             dcc.Location(id="plot-url", refresh=False),
             create_plot_page_layout(
-                controls, "raincloud-plot", "plot-hover-data-box", "Raincloud Plot"
+                create_controls(
+                    assay=assay,
+                    tool=tool,
+                    metric=metric,
+                    num_runs=num_runs,
+                    sample_filter=sample_filter,
+                    color_by=color_by or None,
+                    violin_side=violin_side,
+                    plot_components=plot_components,
+                ),
+                "raincloud-plot",
+                "plot-hover-data-box",
+                "Raincloud Plot",
             ),
         ]
     )
@@ -336,7 +381,8 @@ def update_url(
         "sample_filter": sample_filter or "",
         "color_by": color_by or "",
         "violin_side": violin_side or "positive",
-        "plot_components": plot_components or [],
+        # An empty value keeps "everything unchecked" through a reload
+        "plot_components": plot_components or [""],
     }
     encoded_params = urlencode(query_params, doseq=True)
     return f"?{encoded_params}"

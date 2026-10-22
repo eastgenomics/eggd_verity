@@ -98,3 +98,61 @@ class TestTrendsQueries:
         assert df.empty
         assert "date" in df.columns
         assert "run_folder" in df.columns
+
+
+def _flagstat(sample_id, metric_value):
+    """A flagstat row with a nullable metric (mapped_failed_pct) set."""
+    fields = {
+        name: 0
+        for name, field in SamtoolsFlagstat.model_fields.items()
+        if name not in {"id", "sample_id"} and field.is_required()
+    }
+    fields.update(sample_id=sample_id, mapped_failed_pct=metric_value)
+    return SamtoolsFlagstat(**fields)
+
+
+def _setup_runs(session: Session, dates: list[datetime], with_metric: list[bool]):
+    """Creates one run with one sample per date, newest last."""
+    assay = Assay(name="Multi Assay", ref_genome="GRCh37")
+    session.add(assay)
+    session.commit()
+    for i, (run_date, has_metric) in enumerate(zip(dates, with_metric)):
+        run = Run(
+            run_folder=f"run_{i}",
+            date=run_date,
+            sequencer_id=f"seq{i % 2}",
+            assay_id=assay.id,
+            source=f"project-{i}:file-{i}",
+        )
+        session.add(run)
+        session.commit()
+        sample = Sample(name=f"sample_{i}", run_id=run.id)
+        session.add(sample)
+        session.commit()
+        session.add(_flagstat(sample.id, float(i + 1) if has_metric else None))
+        session.commit()
+
+
+class TestTrendsRunLimit:
+    def test_num_runs_keeps_latest_runs_with_data(self, session: Session):
+        """The run limit keeps the newest runs that have a value for the metric."""
+        _setup_runs(
+            session,
+            [datetime(2023, 1, d) for d in (1, 2, 3, 4)],
+            [True, True, True, False],
+        )
+        df, grouping = get_trends_data(
+            session,
+            assay_names=["Multi Assay"],
+            tool_model=SamtoolsFlagstat,
+            metric_names=["mapped_failed_pct"],
+            num_runs=2,
+            sample_filter="all",
+            color_by="run.sequencer_id",
+            symbol_by=None,
+        )
+
+        # run_3 has no value, so the latest two runs with data are run_1 and run_2
+        assert list(df["run_folder"]) == ["run_1", "run_2"]
+        assert grouping["color"] == "run_sequencer_id"
+        assert list(df["run_sequencer_id"]) == ["seq1", "seq0"]
