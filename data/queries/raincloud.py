@@ -22,8 +22,9 @@ def get_raincloud_data(
         Run.date,
         Run.run_folder.label("run_folder"),
         getattr(tool_model, metric_name).label(metric_name),
+        Assay.name.label("assay_name"),
     ]
-    df_cols = ["date", "run_folder", metric_name]
+    df_cols = ["date", "run_folder", metric_name, "assay_name"]
 
     if not is_run_level:
         columns_to_select.append(Sample.name.label("sample_name"))

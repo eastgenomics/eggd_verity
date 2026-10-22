@@ -26,6 +26,7 @@ class TestRaincloudQueries:
 
         assert list(df["run_folder"]) == ["run_1", "run_2"]
         assert grouping == {"color": "run_sequencer_id"}
+        assert set(df["assay_name"]) == {"Multi Assay"}
 
     def test_no_run_limit_returns_all_runs(self, session: Session):
         """An empty run count returns every run with data."""

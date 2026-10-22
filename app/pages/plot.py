@@ -128,15 +128,37 @@ def create_plot_page_layout(controls_component, plot_id, hover_data_box_id, titl
                         ),
                         width="auto",
                     ),
-                    dbc.Col(html.H2(title), width="auto"),
+                    dbc.Col(html.H3(title, className="mb-0"), width="auto"),
+                    # Hover details sit at the right end of the title row. The
+                    # fixed height fits five lines, so the plot below does not
+                    # jump when the content changes.
                     dbc.Col(
-                        html.Div(id=hover_data_box_id),
+                        html.Div(
+                            id=hover_data_box_id,
+                            style={
+                                "fontSize": "0.85rem",
+                                "height": "5.6rem",
+                                "overflow": "hidden",
+                            },
+                        ),
                         width="auto",
+                        className="ms-auto",
                     ),
                 ],
                 align="center",
+                className="mb-1",
             ),
-            dbc.Row([dbc.Col(dcc.Graph(id=plot_id, style={"height": "75vh"}))]),
+            dbc.Row(
+                [
+                    dbc.Col(
+                        dcc.Graph(
+                            id=plot_id,
+                            # Fill the viewport below the navbar and title row
+                            style={"height": "calc(100vh - 210px)", "minHeight": "450px"},
+                        )
+                    )
+                ]
+            ),
         ],
         fluid=True,
     )
@@ -144,7 +166,7 @@ def create_plot_page_layout(controls_component, plot_id, hover_data_box_id, titl
 
 # Callbacks
 
-register_hover_callbacks("plot", graph_id="raincloud-plot")
+register_hover_callbacks("plot", graph_id="raincloud-plot", extra_labels=("Assay",))
 
 
 @callback(
@@ -291,6 +313,7 @@ def update_raincloud_plot(
         violin_side,
         plot_components,
         color_label,
+        assay_names,
     )
 
 

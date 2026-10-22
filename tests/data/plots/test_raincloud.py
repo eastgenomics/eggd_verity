@@ -122,3 +122,37 @@ class TestRaincloudPlot:
         assert all(t.line.color for t in fig.data)
         assert not fig.layout.showlegend
         assert "all runs" in fig.layout.title.text
+
+    def test_title_and_hover_include_assays(self):
+        """The title names the assays, and each point carries its assay."""
+        df = pd.DataFrame(
+            {
+                "run_folder": ["run1", "run2"],
+                "metric_val": [10, 20],
+                "sample_name": ["s1", "s2"],
+                "assay_name": ["CEN38", "TSO500"],
+            }
+        )
+
+        fig = create_raincloud_figure(
+            df=df,
+            tool_name="Test Tool",
+            metric_name="metric_val",
+            num_runs=2,
+            color_col=None,
+            violin_side="positive",
+            plot_components=["points"],
+            assay_names=["CEN38", "TSO500"],
+        )
+
+        assert fig.layout.title.text.endswith("(CEN38, TSO500)")
+        assert [list(t.customdata[0]) for t in fig.data] == [
+            ["run1", "CEN38"],
+            ["run2", "TSO500"],
+        ]
+
+    def test_many_assays_are_shortened_in_title(self):
+        from data.plots.raincloud import format_assay_names
+
+        assert format_assay_names(["A", "B", "C", "D", "E"]) == "A, B, C +2 more"
+        assert format_assay_names(None) == ""

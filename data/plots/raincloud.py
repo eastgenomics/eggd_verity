@@ -5,6 +5,21 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
+MAX_ASSAYS_IN_TITLE = 3
+
+
+def format_assay_names(assay_names: list[str] | None) -> str:
+    """
+    Joins assay names for the plot title, e.g. "A, B, C +2 more", so that a long
+    selection does not push the title off the plot.
+    """
+    if not assay_names:
+        return ""
+    shown = ", ".join(assay_names[:MAX_ASSAYS_IN_TITLE])
+    hidden = len(assay_names) - MAX_ASSAYS_IN_TITLE
+    return f"{shown} +{hidden} more" if hidden > 0 else shown
+
+
 def create_raincloud_figure(
     df: pd.DataFrame,
     tool_name: str,
@@ -14,6 +29,7 @@ def create_raincloud_figure(
     violin_side: str,
     plot_components: list[str],
     color_label: str | None = None,
+    assay_names: list[str] | None = None,
 ) -> go.Figure:
     """
     Generates the raincloud plot figure.
@@ -24,6 +40,8 @@ def create_raincloud_figure(
     violins and boxes are drawn in a neutral colour.
     """
     df = df.copy()
+    if "assay_name" not in df.columns:
+        df["assay_name"] = ""
     ordered_runs = df["run_folder"].unique()
 
     if color_col:
@@ -111,10 +129,11 @@ def create_raincloud_figure(
                         fillcolor="rgba(0,0,0,0)",
                         hoveron="points",
                         hovertext=df_cat["sample_name"],
-                        customdata=df_cat[["run_folder"]],
+                        customdata=df_cat[["run_folder", "assay_name"]],
                         hovertemplate=(
                             "<b>%{hovertext}</b><br>"
                             "Run: %{x}<br>"
+                            "Assay: %{customdata[1]}<br>"
                             "%{y:.3f}<extra>%{fullData.name}</extra>"
                         ),
                         width=0.7,
@@ -138,14 +157,22 @@ def create_raincloud_figure(
 
     metric_title = metric_name.replace("_", " ").title()
     runs_text = f"the last {num_runs} run(s)" if num_runs else "all runs"
+    title = f"{tool_name}: {metric_title} for {runs_text}"
+    if assay_text := format_assay_names(assay_names):
+        title = f"{title} ({assay_text})"
     fig.update_layout(
-        title=f"{tool_name}: {metric_title} for {runs_text}",
+        title=title,
         title_font=dict(size=20, family="Arial", color="black"),
         violingap=0,
         violinmode="overlay",
         boxmode="overlay",
         xaxis_tickangle=-45,
-        xaxis=dict(categoryorder="array", categoryarray=ordered_runs),
+        xaxis=dict(
+            categoryorder="array",
+            categoryarray=ordered_runs,
+            tickfont=dict(size=10),
+        ),
+        margin=dict(t=50, l=60, r=20, b=20),
         showlegend=show_legend,
         legend_title_text=color_label or "",
         yaxis_title=metric_title,
