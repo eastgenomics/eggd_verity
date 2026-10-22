@@ -123,3 +123,33 @@ class TestTrendsPlot:
         assert all(trace.type == "box" for trace in fig.data)
         assert all(trace.notched for trace in fig.data)
         assert all(trace.boxpoints == "all" for trace in fig.data)
+
+    def test_long_run_names_are_truncated_on_the_axis(self):
+        """Tick labels are shortened, but the full run name stays the category."""
+        long_run = "260920_A01295_0853_BHTVNLDRX7_38"
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2023-01-01"]),
+                "run_folder": [long_run],
+                "sample_name": ["s1"],
+                "my_metric": [10],
+            }
+        )
+
+        fig = create_trends_figure(
+            df=df,
+            tool_name="Test Tool",
+            metric_names=["my_metric"],
+            plot_type="scatter",
+            color_col=None,
+            symbol_col=None,
+            yaxis_transform="linear",
+            show_stats=["show_stats"],
+            marker_size=10,
+            is_run_level=False,
+        )
+
+        assert list(fig.layout.xaxis.tickvals) == [long_run]
+        assert fig.layout.xaxis.ticktext[0] == "260920_A01295_0853_…"
+        assert fig.data[0].x[0] == long_run
+        assert all(shape.line.width == 1 for shape in fig.layout.shapes)

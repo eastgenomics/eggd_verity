@@ -2,6 +2,17 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+# Run folder names are long, so x tick labels are cut to this many characters.
+# The full name is still shown in the hover.
+MAX_RUN_LABEL_LENGTH = 20
+FIGURE_HEIGHT = 580
+
+
+def truncate_label(label: str, max_length: int = MAX_RUN_LABEL_LENGTH) -> str:
+    """Shortens a label to max_length characters, ending in an ellipsis."""
+    label = str(label)
+    return label if len(label) <= max_length else f"{label[: max_length - 1]}…"
+
 
 def create_trends_figure(
     df: pd.DataFrame,
@@ -113,18 +124,21 @@ def create_trends_figure(
             fig.add_hline(
                 y=mean_val,
                 line_dash="solid",
+                line_width=1,
                 line_color="green",
                 annotation_text="Mean",
             )
             fig.add_hline(
                 y=mean_val + 3 * std_val,
                 line_dash="dash",
+                line_width=1,
                 line_color="red",
                 annotation_text="+3 SD",
             )
             fig.add_hline(
                 y=mean_val - 3 * std_val,
                 line_dash="dash",
+                line_width=1,
                 line_color="red",
                 annotation_text="-3 SD",
             )
@@ -136,8 +150,15 @@ def create_trends_figure(
         # Hover on the sample points only; the custom template has no box stats
         fig.update_traces(hoveron="points")
     fig.update_traces(marker=dict(size=marker_size, opacity=0.7))
-    fig.update_xaxes(tickangle=-45)
+    fig.update_xaxes(
+        tickangle=-45,
+        tickmode="array",
+        tickvals=ordered_runs,
+        ticktext=[truncate_label(run) for run in ordered_runs],
+        tickfont=dict(size=10),
+    )
     fig.update_layout(
+        height=FIGURE_HEIGHT,
         margin=dict(l=20, r=20, t=50, b=20),
         legend_title_text="Group By",
         title_font=dict(size=18, weight="bold"),

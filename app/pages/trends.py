@@ -59,7 +59,11 @@ controls = dbc.Card(
             inline=True,
         ),
         dbc.Label("Colour By", className="mt-2"),
-        dcc.Dropdown(id="color-by-dropdown", placeholder="Select a category..."),
+        dcc.Dropdown(
+            id="color-by-dropdown",
+            placeholder="Select a category...",
+            value="run.sequencer_id",
+        ),
         dbc.Label("Symbol By", className="mt-2"),
         dcc.Dropdown(id="symbol-by-dropdown", placeholder="Select a category..."),
         dbc.Label("Marker Size", className="mt-2"),
