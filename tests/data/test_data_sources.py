@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from data.manager.remove_data_source import remove_data_source
 from data.models import Assay, MultiQCReport, Run, Sample
+from data.models.fastqc import Fastqc
 from data.models.samtools import SamtoolsFlagstat
 from data.queries.warnings import get_plot_warnings
 from tests.factories import add_report, run_identity
@@ -80,6 +81,25 @@ def test_fewer_runs_than_requested_is_noted(session: Session):
 
     assert [w["level"] for w in warnings] == ["info"]
     assert "Only 1 run(s)" in warnings[0]["text"]
+
+
+def test_per_fastq_tool_notes_points_per_sample(session: Session):
+    df = pd.DataFrame(
+        {"project_name": ["p1"] * 6, "sample_name": ["s1"] * 4 + ["s2"] * 2}
+    )
+
+    warnings = get_plot_warnings(session, df, Fastqc, None)
+
+    assert [w["level"] for w in warnings] == ["info"]
+    assert "per FASTQ file" in warnings[0]["text"]
+    assert "2 to 4 points" in warnings[0]["text"]
+
+
+def test_per_sample_tool_has_no_fastq_note(session: Session):
+    run = _run_with_reports(session, [["s1", "s2"]])
+
+    assert not SamtoolsFlagstat.per_fastq
+    assert get_plot_warnings(session, _plotted(run), SamtoolsFlagstat, None) == []
 
 
 def test_dry_run_changes_nothing(session: Session):

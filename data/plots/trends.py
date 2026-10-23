@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from data.utils.formatting import run_label
+from data.utils.formatting import run_label, run_sample_counts
 
 # Project names are long, so x tick labels drop the number prefix and are cut to
 # this many characters. The full name is still shown in the hover.
@@ -42,14 +42,11 @@ def create_trends_figure(
     ordered_runs = list(df["project_name"].unique())
 
     def add_run_samples(data, value_col, by=()):
-        # Samples with a value in each run, so points stacked on one value are
-        # still counted. Run-level tools have one row per run, so leave it blank.
+        # Run-level tools have one row per run, so there is no sample count
         if is_run_level:
             data["run_samples"] = None
         else:
-            data["run_samples"] = data.groupby(["project_name", *by])[
-                value_col
-            ].transform("count")
+            data["run_samples"] = run_sample_counts(data, value_col, by)
         return data
 
     def plot(data, **kwargs):

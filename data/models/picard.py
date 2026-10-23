@@ -50,6 +50,7 @@ class PicardBaseContent(BaseMetrics, table=True):
 
     __tablename__ = "picard_base_content"
     multiqc_section_names: ClassVar[list[str]] = ["multiqc_picard_baseContent"]
+    per_fastq: ClassVar[bool] = True
 
     sample: "Sample" = Relationship(back_populates="picard_base_content_metrics")
     

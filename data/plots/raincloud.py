@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from data.utils.formatting import run_label
+from data.utils.formatting import run_label, run_sample_counts
 
 
 MAX_ASSAYS_IN_TITLE = 3
@@ -46,7 +46,7 @@ def create_raincloud_figure(
         df["assay_name"] = ""
     ordered_runs = df["project_name"].unique()
     # Samples with a value in each run, shown in the hover box
-    df["run_samples"] = df.groupby("project_name")[metric_name].transform("count")
+    df["run_samples"] = run_sample_counts(df, metric_name)
 
     if color_col:
         df[color_col] = df[color_col].fillna("N/A").astype(str)

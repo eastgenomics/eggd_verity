@@ -208,3 +208,19 @@ Replace `docker` with `podman` if using podman
 - **To view logs**: `docker logs verity-container`
 - **To stop the container**: `docker stop verity-container`
 - **To remove the container**: `docker rm verity-container`
+
+## TODO
+
+- **Revisit how per-FASTQ metrics are handled.** Tools marked `per_fastq` (FastQC,
+  Picard base content) store one row per FASTQ file (lane and read pair), so each
+  sample has several points in Trends and Raincloud. The hover box shows the sample
+  count with the number of values, and an info note explains it. Still to decide:
+  - Whether `Fastqc.total_unique_reads` and `total_duplicate_reads` should stay. They
+    sum per-file estimates (FastQC's duplication level is based on the first 100,000
+    reads of each file, and R1 and R2 are counted separately), then copy the total
+    onto every file's row. The method has been questioned. Picard or Samtools
+    duplicate metrics may be the better source.
+  - If any per-sample totals stay, plot them once per sample. Today the copies
+    stack, so box mode's notch counts every file and comes out too narrow.
+  - Whether plots should offer an aggregate per sample (mean or sum over files),
+    or a lane or read pair filter.

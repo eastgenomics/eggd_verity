@@ -24,6 +24,22 @@ def get_plot_warnings(
     project_names = list(df["project_name"].unique())
     warnings = find_duplicate_reports(session, project_names, tool_model)
 
+    if getattr(tool_model, "per_fastq", False) and "sample_name" in df.columns:
+        rows_per_sample = df.groupby(["project_name", "sample_name"]).size()
+        low, high = rows_per_sample.min(), rows_per_sample.max()
+        if high > 1:
+            per_sample = f"{low}" if low == high else f"{low} to {high}"
+            warnings.append(
+                {
+                    "level": "info",
+                    "text": (
+                        f"{tool_model.display_name} values are per FASTQ file "
+                        f"(lane and read pair), so each sample has {per_sample} "
+                        "points. See the Explore page for each file's values."
+                    ),
+                }
+            )
+
     if num_runs and len(project_names) < num_runs:
         warnings.append(
             {

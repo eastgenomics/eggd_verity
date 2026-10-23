@@ -147,8 +147,8 @@ class TestRaincloudPlot:
 
         assert fig.layout.title.text.endswith("(CEN38, TSO500)")
         assert [list(t.customdata[0]) for t in fig.data] == [
-            ["run1", "CEN38", 1],
-            ["run2", "TSO500", 1],
+            ["run1", "CEN38", "1"],
+            ["run2", "TSO500", "1"],
         ]
 
     def test_many_assays_are_shortened_in_title(self):

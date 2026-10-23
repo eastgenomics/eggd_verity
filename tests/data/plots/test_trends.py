@@ -176,7 +176,7 @@ class TestTrendsPlot:
         )
 
         fig = create_trends_figure(df=df, is_run_level=False, **kwargs)
-        assert [row[2] for row in fig.data[0].customdata] == [3, 3, 3, 1]
+        assert [row[2] for row in fig.data[0].customdata] == ["3", "3", "3", "1"]
         assert "Samples in run" in fig.data[0].hovertemplate
 
         run_df = df.drop(columns="sample_name")

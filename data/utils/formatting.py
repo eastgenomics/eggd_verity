@@ -47,3 +47,23 @@ def run_label(project_name: str) -> str:
     # Only a short prefix followed by the YYMMDD run date, so that a name that
     # already starts with the date is left alone
     return re.sub(r"^\d{1,4}_(?=\d{6}_)", "", str(project_name))
+
+
+def run_sample_counts(df: pd.DataFrame, value_col: str, by=()) -> pd.Series:
+    """
+    Labels each row with its run's sample count, e.g. "96", or "96 (384 values)"
+    when samples have several rows (one per FASTQ file). Only rows with a value
+    are counted, so points stacked on one value still add to the count.
+    """
+    keys = ["project_name", *by]
+    has_value = df[value_col].notna()
+    samples = df["sample_name"].where(has_value).groupby([df[k] for k in keys])
+    n_samples = samples.transform("nunique")
+    n_values = samples.transform("count")
+    return pd.Series(
+        [
+            f"{s}" if s == v else f"{s} ({v} values)"
+            for s, v in zip(n_samples, n_values)
+        ],
+        index=df.index,
+    )

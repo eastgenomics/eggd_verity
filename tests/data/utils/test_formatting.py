@@ -1,7 +1,7 @@
 import pandas as pd
 
 from data.models.choices import QCStatus, SexKaryotype
-from data.utils.formatting import format_categorical_columns
+from data.utils.formatting import format_categorical_columns, run_sample_counts
 
 
 class TestFormattingUtils:
@@ -60,3 +60,18 @@ def test_run_label_strips_number_prefix():
     assert run_label("261016_A01295_0866_BHV232DRX7_HRD") == (
         "261016_A01295_0866_BHV232DRX7_HRD"
     )
+
+
+def test_run_sample_counts_shows_values_when_samples_repeat():
+    df = pd.DataFrame(
+        {
+            "project_name": ["p1"] * 5 + ["p2"],
+            "sample_name": ["s1"] * 4 + ["s2", "s3"],
+            "value": [1.0, 2.0, 3.0, 4.0, None, 5.0],
+        }
+    )
+
+    counts = run_sample_counts(df, "value")
+
+    # s2 has no value, so p1 has one sample with four FASTQ values
+    assert list(counts) == ["1 (4 values)"] * 5 + ["1"]

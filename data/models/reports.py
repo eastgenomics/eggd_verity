@@ -309,6 +309,8 @@ class BaseMetrics(SQLModel):
     multiqc_section_names: ClassVar[list[str]] = []
     index_col: ClassVar[str] = "sample"
     metric_level: ClassVar[str] = "sample"  # 'sample' or 'run'
+    # One row per FASTQ file (lane x read pair) rather than per sample
+    per_fastq: ClassVar[bool] = False
 
     id: int | None = Field(
         default=None, primary_key=True, description="Primary key for the metric record"

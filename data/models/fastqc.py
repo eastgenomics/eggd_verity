@@ -16,6 +16,7 @@ class Fastqc(BaseMetrics, table=True):
 
     __tablename__ = "fastqc"
     multiqc_section_names: ClassVar[list[str]] = ["multiqc_fastqc"]
+    per_fastq: ClassVar[bool] = True
 
     sample: "Sample" = Relationship(back_populates="fastqc_metrics")
 
