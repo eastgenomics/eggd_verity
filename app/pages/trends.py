@@ -110,7 +110,7 @@ layout = html.Div(
 
 # Callbacks
 
-register_hover_callbacks("trends", extra_labels=("Date", "Metric"))
+register_hover_callbacks("trends", extra_labels=("Date", "Samples", "Metric"))
 
 
 @callback(Output("assay-dropdown", "options"), Input("assay-dropdown", "id"))

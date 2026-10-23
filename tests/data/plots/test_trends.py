@@ -153,3 +153,33 @@ class TestTrendsPlot:
         assert fig.layout.xaxis.ticktext[0] == "260920_A01295_0853_…"
         assert fig.data[0].x[0] == long_run
         assert all(shape.line.width == 1 for shape in fig.layout.shapes)
+
+    def test_hover_carries_sample_count_per_run(self):
+        """Samples stacked on one value are still counted for their run."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2023-01-01"] * 3 + ["2023-01-02"]),
+                "project_name": ["run1", "run1", "run1", "run2"],
+                "sample_name": ["s1", "s2", "s3", "s4"],
+                "my_metric": [100.0, 100.0, 100.0, 90.0],
+            }
+        )
+        kwargs = dict(
+            tool_name="Test Tool",
+            metric_names=["my_metric"],
+            plot_type="scatter",
+            color_col=None,
+            symbol_col=None,
+            yaxis_transform="linear",
+            show_stats=[],
+            marker_size=10,
+        )
+
+        fig = create_trends_figure(df=df, is_run_level=False, **kwargs)
+        assert [row[2] for row in fig.data[0].customdata] == [3, 3, 3, 1]
+        assert "Samples in run" in fig.data[0].hovertemplate
+
+        run_df = df.drop(columns="sample_name")
+        fig = create_trends_figure(df=run_df, is_run_level=True, **kwargs)
+        assert all(row[2] is None for row in fig.data[0].customdata)
+        assert "Samples in run" not in fig.data[0].hovertemplate

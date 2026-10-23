@@ -35,10 +35,22 @@ def create_trends_figure(
     is_multi_metric = len(metric_names) > 1
     is_box = plot_type == "box"
     hover_name = "sample_name" if not is_run_level else "project_name"
+    samples_line = "" if is_run_level else "Samples in run: %{customdata[2]}<br>"
 
     # Runs arrive sorted by date. Fix the category order explicitly, otherwise
     # Plotly orders runs by first appearance across traces when grouping is on.
     ordered_runs = list(df["project_name"].unique())
+
+    def add_run_samples(data, value_col, by=()):
+        # Samples with a value in each run, so points stacked on one value are
+        # still counted. Run-level tools have one row per run, so leave it blank.
+        if is_run_level:
+            data["run_samples"] = None
+        else:
+            data["run_samples"] = data.groupby(["project_name", *by])[
+                value_col
+            ].transform("count")
+        return data
 
     def plot(data, **kwargs):
         if is_box:
@@ -61,6 +73,8 @@ def create_trends_figure(
             value_name="Value",
         )
 
+        df_long = add_run_samples(df_long, "Value", by=["Metric"])
+
         # Standardise each metric's values independently
         df_long["Value"] = df_long.groupby("Metric")["Value"].transform(
             lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0
@@ -73,7 +87,7 @@ def create_trends_figure(
             color="Metric",
             symbol=symbol_col,
             hover_name=hover_name,
-            custom_data=["project_name", "date", "Metric"],
+            custom_data=["project_name", "date", "run_samples", "Metric"],
             category_orders={"project_name": ordered_runs},
             title=f"Trends for {tool_name}",
             labels={"Value": "Value (Z-score)", "project_name": "Run"},
@@ -83,7 +97,8 @@ def create_trends_figure(
                 "<b>%{hovertext}</b><br><br>"
                 "Run: %{customdata[0]}<br>"
                 "Date: %{customdata[1]}<br>"
-                "Metric: %{customdata[2]}<br>"
+                f"{samples_line}"
+                "Metric: %{customdata[3]}<br>"
                 "Value (Z-score): %{y:.3f}<extra></extra>"
             )
         )
@@ -91,6 +106,7 @@ def create_trends_figure(
         metric_name = metric_names[0]
         df = df.rename(columns={metric_name: "metric_value"})
         metric_label = metric_name.replace("_", " ").title()
+        df = add_run_samples(df, "metric_value")
 
         if yaxis_transform == "standardise":
             mean_val, std_val = df["metric_value"].mean(), df["metric_value"].std()
@@ -106,7 +122,7 @@ def create_trends_figure(
             color=color_col,
             symbol=symbol_col,
             hover_name=hover_name,
-            custom_data=["project_name", "date"],
+            custom_data=["project_name", "date", "run_samples"],
             category_orders={"project_name": ordered_runs},
             title=f"Trend for {tool_name}: {metric_label}",
             labels={"metric_value": metric_label, "project_name": "Run"},
@@ -116,6 +132,7 @@ def create_trends_figure(
                 f"<b>%{{hovertext}}</b><br><br>"
                 f"Run: %{{customdata[0]}}<br>"
                 f"Date: %{{customdata[1]}}<br>"
+                f"{samples_line}"
                 f"{metric_label}: %{{y:.3f}}<extra></extra>"
             )
         )

@@ -45,6 +45,8 @@ def create_raincloud_figure(
     if "assay_name" not in df.columns:
         df["assay_name"] = ""
     ordered_runs = df["project_name"].unique()
+    # Samples with a value in each run, shown in the hover box
+    df["run_samples"] = df.groupby("project_name")[metric_name].transform("count")
 
     if color_col:
         df[color_col] = df[color_col].fillna("N/A").astype(str)
@@ -131,11 +133,12 @@ def create_raincloud_figure(
                         fillcolor="rgba(0,0,0,0)",
                         hoveron="points",
                         hovertext=df_cat["sample_name"],
-                        customdata=df_cat[["project_name", "assay_name"]],
+                        customdata=df_cat[["project_name", "assay_name", "run_samples"]],
                         hovertemplate=(
                             "<b>%{hovertext}</b><br>"
                             "Run: %{customdata[0]}<br>"
                             "Assay: %{customdata[1]}<br>"
+                            "Samples in run: %{customdata[2]}<br>"
                             "%{y:.3f}<extra>%{fullData.name}</extra>"
                         ),
                         width=0.7,

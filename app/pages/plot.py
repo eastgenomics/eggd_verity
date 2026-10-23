@@ -168,7 +168,7 @@ def create_plot_page_layout(controls_component, plot_id, hover_data_box_id, titl
 
 # Callbacks
 
-register_hover_callbacks("plot", graph_id="raincloud-plot", extra_labels=("Assay",))
+register_hover_callbacks("plot", graph_id="raincloud-plot", extra_labels=("Assay", "Samples"))
 
 
 @callback(
