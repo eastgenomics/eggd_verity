@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
 # Install OS-level build dependencies
-RUN apk add --no-cache gcc musl-dev python3-dev linux-headers graphviz-dev
+RUN apk add --no-cache gcc musl-dev python3-dev linux-headers
 
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"

@@ -12,7 +12,6 @@ dash==3.2.0
 dash-bootstrap-components==2.0.4
 dash_auth==2.3.0
 dxpy==0.398.0
-eralchemy2==1.4.1
 et_xmlfile==2.0.0
 fire==0.7.1
 Flask==3.1.2
@@ -43,7 +42,6 @@ pydantic==2.11.7
 pydantic-settings==2.12.0
 pydantic_core==2.33.2
 Pygments==2.21.0
-pygraphviz==1.14
 pytest==9.1.1
 python-dateutil==2.9.0.post0
 python-decouple==3.8
