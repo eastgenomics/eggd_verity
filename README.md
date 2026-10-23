@@ -215,12 +215,11 @@ Replace `docker` with `podman` if using podman
   Picard base content) store one row per FASTQ file (lane and read pair), so each
   sample has several points in Trends and Raincloud. The hover box shows the sample
   count with the number of values, and an info note explains it. Still to decide:
-  - Whether `Fastqc.total_unique_reads` and `total_duplicate_reads` should stay. They
-    sum per-file estimates (FastQC's duplication level is based on the first 100,000
-    reads of each file, and R1 and R2 are counted separately), then copy the total
-    onto every file's row. The method has been questioned. Picard or Samtools
+  - Whether to bring back per-sample read totals. `Fastqc.total_unique_reads` and
+    `total_duplicate_reads` were removed because they were misleading: they summed
+    per-file estimates (FastQC's duplication level is based on the first 100,000
+    reads of each file, and R1 and R2 are counted separately), then copied the total
+    onto every file's row, so box mode's notch counted every copy. Picard or Samtools
     duplicate metrics may be the better source.
-  - If any per-sample totals stay, plot them once per sample. Today the copies
-    stack, so box mode's notch counts every file and comes out too narrow.
   - Whether plots should offer an aggregate per sample (mean or sum over files),
     or a lane or read pair filter.

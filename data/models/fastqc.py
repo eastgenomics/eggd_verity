@@ -23,16 +23,6 @@ class Fastqc(BaseMetrics, table=True):
     lane: str | None = Field(default=None, description="Sequencing lane (eg L001)")
     read_pair: str | None = Field(default=None, description="Read pair (eg R1, R2)")
 
-    # computed fields
-    total_unique_reads: int | None = Field(
-        default=None,
-        description="Sum of unique reads for the sample across all lanes/pairs",
-    )
-    total_duplicate_reads: int | None = Field(
-        default=None,
-        description="Sum of duplicate reads for the sample across all lanes/pairs",
-    )
-
     filename: str
     file_type: str
     encoding: str
@@ -61,25 +51,6 @@ class Fastqc(BaseMetrics, table=True):
         """
         Performs FastQC-specific data transformations
         """
-
-        # Calculate unique and duplicate reads for each row (each fastq file)
-        df["unique_reads"] = (
-            (df["total_deduplicated_percentage"] / 100.0) * df["total_sequences"]
-        ).astype(int)
-        df["duplicate_reads"] = (df["total_sequences"] - df["unique_reads"]).astype(int)
-
-        agg_df = (
-            df.groupby("sample")
-            .agg(
-                total_unique_reads=("unique_reads", "sum"),
-                total_duplicate_reads=("duplicate_reads", "sum"),
-            )
-            .reset_index()
-        )
-        df = pd.merge(df, agg_df, on="sample", how="left")
-
-        # Drop the intermediate columns
-        df = df.drop(columns=["unique_reads", "duplicate_reads"])
 
         # Coerce sequence_length to string to handle mixed types (e.g., '50-151' and 151)
         if "sequence_length" in df.columns:
