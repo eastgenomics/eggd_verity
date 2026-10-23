@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 
 from data.models.choices import QCStatus, SexKaryotype
@@ -35,3 +37,13 @@ def format_categorical_columns(
                         lambda x: str(enum_class(x)) if pd.notna(x) else "N/A"
                     )
     return df
+
+
+def run_label(project_name: str) -> str:
+    """
+    Short label for a run: the project name without its leading number prefix.
+    e.g. '002_261016_A01295_0866_BHV232DRX7_HRD' -> '261016_A01295_0866_BHV232DRX7_HRD'
+    """
+    # Only a short prefix followed by the YYMMDD run date, so that a name that
+    # already starts with the date is left alone
+    return re.sub(r"^\d{1,4}_(?=\d{6}_)", "", str(project_name))

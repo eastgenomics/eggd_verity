@@ -4,6 +4,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+from data.utils.formatting import run_label
+
 
 MAX_ASSAYS_IN_TITLE = 3
 
@@ -42,18 +44,18 @@ def create_raincloud_figure(
     df = df.copy()
     if "assay_name" not in df.columns:
         df["assay_name"] = ""
-    ordered_runs = df["run_folder"].unique()
+    ordered_runs = df["project_name"].unique()
 
     if color_col:
         df[color_col] = df[color_col].fillna("N/A").astype(str)
         group_col = color_col
     else:
-        group_col = "run_folder"
+        group_col = "project_name"
 
     categories = df[group_col].unique()
     color_discrete_map = dict(zip(categories, cycle(px.colors.qualitative.Plotly)))
     per_sample = bool(color_col) and (
-        df.groupby("run_folder")[color_col].nunique().max() > 1
+        df.groupby("project_name")[color_col].nunique().max() > 1
     )
     show_legend = bool(color_col)
     neutral_color = "#7f7f7f"
@@ -72,11 +74,11 @@ def create_raincloud_figure(
 
     if "violin" in plot_components:
         for run in ordered_runs:
-            df_run = df[df["run_folder"] == run]
+            df_run = df[df["project_name"] == run]
             style = run_style(df_run)
             fig.add_trace(
                 go.Violin(
-                    x=df_run["run_folder"],
+                    x=df_run["project_name"],
                     y=df_run[metric_name],
                     name=str(df_run[group_col].iloc[0]) if show_legend else run,
                     side=violin_side if violin_side != "both" else None,
@@ -89,11 +91,11 @@ def create_raincloud_figure(
 
     if "box" in plot_components:
         for run in ordered_runs:
-            df_run = df[df["run_folder"] == run]
+            df_run = df[df["project_name"] == run]
             style = run_style(df_run)
             fig.add_trace(
                 go.Box(
-                    x=df_run["run_folder"],
+                    x=df_run["project_name"],
                     y=df_run[metric_name],
                     name=str(df_run[group_col].iloc[0]) if show_legend else run,
                     marker_color=style["marker_color"],
@@ -110,12 +112,12 @@ def create_raincloud_figure(
         pointpos_map = {"positive": -0.6, "negative": 0.6, "both": 0}
         pointpos = pointpos_map.get(violin_side, 0)
         for run in ordered_runs:
-            df_run = df[df["run_folder"] == run]
+            df_run = df[df["project_name"] == run]
             # One trace per colour within the run, so each sample keeps its colour
             for category, df_cat in df_run.groupby(group_col, sort=False):
                 fig.add_trace(
                     go.Box(
-                        x=df_cat["run_folder"],
+                        x=df_cat["project_name"],
                         y=df_cat[metric_name],
                         name=str(category) if show_legend else run,
                         legendgroup=category if show_legend else None,
@@ -129,10 +131,10 @@ def create_raincloud_figure(
                         fillcolor="rgba(0,0,0,0)",
                         hoveron="points",
                         hovertext=df_cat["sample_name"],
-                        customdata=df_cat[["run_folder", "assay_name"]],
+                        customdata=df_cat[["project_name", "assay_name"]],
                         hovertemplate=(
                             "<b>%{hovertext}</b><br>"
-                            "Run: %{x}<br>"
+                            "Run: %{customdata[0]}<br>"
                             "Assay: %{customdata[1]}<br>"
                             "%{y:.3f}<extra>%{fullData.name}</extra>"
                         ),
@@ -170,6 +172,9 @@ def create_raincloud_figure(
         xaxis=dict(
             categoryorder="array",
             categoryarray=ordered_runs,
+            tickmode="array",
+            tickvals=ordered_runs,
+            ticktext=[run_label(run) for run in ordered_runs],
             tickfont=dict(size=10),
         ),
         margin=dict(t=50, l=60, r=20, b=20),

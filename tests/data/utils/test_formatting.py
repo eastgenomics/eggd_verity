@@ -48,3 +48,15 @@ class TestFormattingUtils:
         # other_col should remain unchanged
         assert df_out["other_col"].dtype == "object"
         assert "A" in df_out["other_col"].values
+
+
+def test_run_label_strips_number_prefix():
+    from data.utils.formatting import run_label
+
+    assert run_label("002_261016_A01295_0866_BHV232DRX7_HRD") == (
+        "261016_A01295_0866_BHV232DRX7_HRD"
+    )
+    # Names without the prefix are left alone
+    assert run_label("261016_A01295_0866_BHV232DRX7_HRD") == (
+        "261016_A01295_0866_BHV232DRX7_HRD"
+    )

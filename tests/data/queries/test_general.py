@@ -5,6 +5,7 @@ from sqlmodel import Session
 from data.models.reports import Assay, Run, Sample
 from data.models.samtools import SamtoolsFlagstat
 from data.queries.general import get_assay_names, get_available_tools
+from tests.factories import add_report, run_identity
 
 
 class TestGeneralQueries:
@@ -27,7 +28,7 @@ class TestGeneralQueries:
             date=datetime.now(),
             sequencer_id="seq1",
             assay_id=assay.id,
-            source="project-123:file-1",
+            **run_identity(),
         )
         session.add(run)
         session.commit()
@@ -38,6 +39,7 @@ class TestGeneralQueries:
 
         metric = SamtoolsFlagstat(
             sample_id=sample.id,
+            report_id=add_report(session, run).id,
             total_passed=100,
             total_failed=0,
             secondary_passed=0,

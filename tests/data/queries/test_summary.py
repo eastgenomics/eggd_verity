@@ -2,6 +2,7 @@ from datetime import datetime
 
 from data.models.reports import Assay, Run, Sample
 from data.queries.summary import get_summary_stats
+from tests.factories import add_report, run_identity
 
 
 def add_assay_run_sample(session, assay):
@@ -11,7 +12,7 @@ def add_assay_run_sample(session, assay):
         run_folder=f"run-{assay.name}",
         date=datetime(2025, 1, 1),
         sequencer_id="SEQ1",
-        source=("project-123456789012345678901234:" f"file-{assay.id:024d}"),
+        **run_identity(),
         assay_id=assay.id,
     )
     session.add(run)

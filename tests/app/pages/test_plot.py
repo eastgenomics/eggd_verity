@@ -53,24 +53,28 @@ def test_unchecked_components_survive_url_round_trip():
     assert _find(page, "plot-components-checklist").value == []
 
 
+@patch("app.pages.plot.get_plot_warnings", return_value=[])
 @patch("app.pages.plot.get_session")
 @patch("app.pages.plot.get_raincloud_data")
 @patch("app.pages.plot.TOOL_MODEL_MAP")
-def test_regex_with_no_matches_warns(mock_map, mock_get_data, mock_get_session):
+def test_regex_with_no_matches_warns(
+    mock_map, mock_get_data, mock_get_session, _mock_warnings
+):
     mock_map.__getitem__.return_value = MagicMock(metric_level="sample")
     df = pd.DataFrame(
         {
             "date": ["2023-01-01"],
-            "run_folder": ["run1"],
+            "project_name": ["002_run1_CEN"],
             "m": [1.0],
             "sample_name": [None],
         }
     )
     mock_get_data.return_value = (df, {"color": None})
 
-    fig = update_raincloud_plot(
+    fig, alerts = update_raincloud_plot(
         ["A"], "Tool A", "m", 10, "^nomatch$", None, "positive", ["violin"]
     )
+    assert alerts == []
 
     assert isinstance(fig, go.Figure)
     assert "No samples match" in fig.layout.annotations[0].text

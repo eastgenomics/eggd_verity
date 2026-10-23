@@ -33,11 +33,14 @@ def test_populate_tools(mock_get_tools, mock_get_session):
     assert options == ["Tool A", "Tool B"]
 
 
+@patch("app.pages.trends.get_plot_warnings")
 @patch("app.pages.trends.get_session")
 @patch("app.pages.trends.get_trends_data")
 @patch("app.pages.trends.create_trends_figure")
 @patch("app.pages.trends.TOOL_MODEL_MAP")
-def test_update_trends_plot(mock_map, mock_create_fig, mock_get_data, mock_get_session):
+def test_update_trends_plot(
+    mock_map, mock_create_fig, mock_get_data, mock_get_session, mock_warnings
+):
     # Setup
     mock_session = MagicMock()
     mock_get_session.return_value.__enter__.return_value = mock_session
@@ -48,16 +51,17 @@ def test_update_trends_plot(mock_map, mock_create_fig, mock_get_data, mock_get_s
     mock_map.__getitem__.return_value = mock_tool_model
 
     # Mock Data
-    df = pd.DataFrame({"date": ["2023-01-01"], "run_folder": ["run1"]})
+    df = pd.DataFrame({"date": ["2023-01-01"], "project_name": ["002_run1_CEN"]})
     grouping = {"color": None, "symbol": None}
     mock_get_data.return_value = (df, grouping)
+    mock_warnings.return_value = [{"level": "warning", "text": "Duplicate report"}]
 
     # Mock Figure
     mock_fig = go.Figure()
     mock_create_fig.return_value = mock_fig
 
     # Call
-    fig = update_trends_plot(
+    fig, alerts = update_trends_plot(
         assay_names=["Assay A"],
         tool_name="Tool A",
         metric_names=["metric1"],
@@ -72,12 +76,13 @@ def test_update_trends_plot(mock_map, mock_create_fig, mock_get_data, mock_get_s
     )
 
     assert isinstance(fig, go.Figure)
+    assert len(alerts) == 1
     mock_get_data.assert_called_once()
     mock_create_fig.assert_called_once()
 
 
 def test_update_trends_plot_missing_inputs():
-    fig = update_trends_plot(
+    fig, alerts = update_trends_plot(
         assay_names=[],
         tool_name=None,
         metric_names=[],

@@ -4,6 +4,7 @@ from sqlmodel import Session
 
 from data.models.reports import Assay, Run
 from data.queries.explore import get_runs_for_assay
+from tests.factories import add_report, run_identity
 
 
 class TestExploreQueries:
@@ -18,14 +19,14 @@ class TestExploreQueries:
             date=datetime(2023, 1, 1),
             sequencer_id="seq1",
             assay_id=assay.id,
-            source="project-123:file-1",
+            **run_identity(),
         )
         run2 = Run(
             run_folder="run_exp_2",
             date=datetime(2023, 1, 2),
             sequencer_id="seq1",
             assay_id=assay.id,
-            source="project-123:file-2",
+            **run_identity(),
         )
         session.add(run1)
         session.add(run2)

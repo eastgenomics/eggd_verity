@@ -10,7 +10,7 @@ class TestTrendsPlot:
         df = pd.DataFrame(
             {
                 "date": pd.to_datetime(["2023-01-01", "2023-01-02"]),
-                "run_folder": ["run1", "run2"],
+                "project_name": ["run1", "run2"],
                 "sample_name": ["s1", "s2"],
                 "my_metric": [10, 20],
                 "group": ["A", "B"],
@@ -39,7 +39,7 @@ class TestTrendsPlot:
         df = pd.DataFrame(
             {
                 "date": pd.to_datetime(["2023-01-01", "2023-01-02"]),
-                "run_folder": ["run1", "run2"],
+                "project_name": ["run1", "run2"],
                 "sample_name": ["s1", "s2"],
                 "m1": [10, 20],
                 "m2": [5, 15],
@@ -68,7 +68,7 @@ class TestTrendsPlot:
         df = pd.DataFrame(
             {
                 "date": pd.to_datetime(["2023-01-01", "2023-01-02", "2023-01-03"]),
-                "run_folder": ["run_b", "run_a", "run_c"],
+                "project_name": ["run_b", "run_a", "run_c"],
                 "sample_name": ["s1", "s2", "s3"],
                 "my_metric": [10, 20, 30],
                 # The first trace only covers the later run
@@ -100,7 +100,7 @@ class TestTrendsPlot:
         df = pd.DataFrame(
             {
                 "date": pd.to_datetime(["2023-01-01"] * 3 + ["2023-01-02"] * 3),
-                "run_folder": ["run1"] * 3 + ["run2"] * 3,
+                "project_name": ["run1"] * 3 + ["run2"] * 3,
                 "sample_name": [f"s{i}" for i in range(6)],
                 "my_metric": [10, 11, 12, 20, 21, 22],
                 "sym": ["x", "y", "x", "y", "x", "y"],
@@ -125,12 +125,12 @@ class TestTrendsPlot:
         assert all(trace.boxpoints == "all" for trace in fig.data)
 
     def test_long_run_names_are_truncated_on_the_axis(self):
-        """Tick labels are shortened, but the full run name stays the category."""
-        long_run = "260920_A01295_0853_BHTVNLDRX7_38"
+        """Tick labels drop the 002_ prefix and are shortened; the full name stays the category."""
+        long_run = "002_260920_A01295_0853_BHTVNLDRX7_CEN38"
         df = pd.DataFrame(
             {
                 "date": pd.to_datetime(["2023-01-01"]),
-                "run_folder": [long_run],
+                "project_name": [long_run],
                 "sample_name": ["s1"],
                 "my_metric": [10],
             }

@@ -5,6 +5,7 @@ from sqlmodel import Session
 from data.models.reports import Assay, Run, Sample
 from data.models.samtools import SamtoolsFlagstat
 from data.queries.trends import get_trends_data
+from tests.factories import add_report, run_identity
 
 
 class TestTrendsQueries:
@@ -19,7 +20,7 @@ class TestTrendsQueries:
             date=datetime(2023, 1, 1),
             sequencer_id="seq1",
             assay_id=assay.id,
-            source="project-123:file-1",
+            **run_identity(),
         )
         session.add(run)
         session.commit()
@@ -30,6 +31,7 @@ class TestTrendsQueries:
 
         metric = SamtoolsFlagstat(
             sample_id=sample.id,
+            report_id=add_report(session, run).id,
             total_passed=1000,
             total_failed=0,
             secondary_passed=0,
@@ -100,14 +102,16 @@ class TestTrendsQueries:
         assert "run_folder" in df.columns
 
 
-def _flagstat(sample_id, metric_value):
+def _flagstat(sample_id, report_id, metric_value):
     """A flagstat row with a nullable metric (mapped_failed_pct) set."""
     fields = {
         name: 0
         for name, field in SamtoolsFlagstat.model_fields.items()
-        if name not in {"id", "sample_id"} and field.is_required()
+        if name not in {"id", "sample_id", "report_id"} and field.is_required()
     }
-    fields.update(sample_id=sample_id, mapped_failed_pct=metric_value)
+    fields.update(
+        sample_id=sample_id, report_id=report_id, mapped_failed_pct=metric_value
+    )
     return SamtoolsFlagstat(**fields)
 
 
@@ -122,14 +126,17 @@ def _setup_runs(session: Session, dates: list[datetime], with_metric: list[bool]
             date=run_date,
             sequencer_id=f"seq{i % 2}",
             assay_id=assay.id,
-            source=f"project-{i}:file-{i}",
+            **run_identity(),
         )
         session.add(run)
         session.commit()
         sample = Sample(name=f"sample_{i}", run_id=run.id)
         session.add(sample)
         session.commit()
-        session.add(_flagstat(sample.id, float(i + 1) if has_metric else None))
+        report = add_report(session, run)
+        session.add(
+            _flagstat(sample.id, report.id, float(i + 1) if has_metric else None)
+        )
         session.commit()
 
 

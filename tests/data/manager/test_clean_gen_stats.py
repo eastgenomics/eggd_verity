@@ -8,6 +8,7 @@ from data.models.gen_stats import GenStats
 from data.models.reports import Assay, Run, Sample
 from data.queries.general import get_available_tools
 from data.utils.model_utils import get_metric_models
+from tests.factories import add_report, run_identity
 
 
 def setup_test_runs(session: Session):
@@ -25,18 +26,20 @@ def setup_test_runs(session: Session):
         run_folder="RUN_MYE_001",
         date=datetime(2026, 1, 1),
         sequencer_id="A01303",
-        source="project-111111111111111111111111:file-111111111111111111111111",
+        **run_identity(),
         assay_id=assay_mye.id,
     )
     run_cen = Run(
         run_folder="RUN_CEN_001",
         date=datetime(2026, 1, 1),
         sequencer_id="A01303",
-        source="project-222222222222222222222222:file-222222222222222222222222",
+        **run_identity(),
         assay_id=assay_cen.id,
     )
     session.add_all([run_mye, run_cen])
     session.commit()
+    report_mye = add_report(session, run_mye)
+    report_cen = add_report(session, run_cen)
 
     # Samples for MYE run:
     sample_mye_1 = Sample(name="sample_mye_1", run_id=run_mye.id)
@@ -49,12 +52,12 @@ def setup_test_runs(session: Session):
     session.commit()
 
     # GenStats for MYE: sample 1 has metrics, sample 2 is null
-    gs_mye_1 = GenStats(sample_id=sample_mye_1.id, custom_coverage_250x=99.5)
-    gs_mye_2 = GenStats(sample_id=sample_mye_2.id, custom_coverage_250x=None)
+    gs_mye_1 = GenStats(sample_id=sample_mye_1.id, report_id=report_mye.id, custom_coverage_250x=99.5)
+    gs_mye_2 = GenStats(sample_id=sample_mye_2.id, report_id=report_mye.id, custom_coverage_250x=None)
 
     # GenStats for CEN: all samples have all NULL metrics
-    gs_cen_1 = GenStats(sample_id=sample_cen_1.id, custom_coverage_250x=None)
-    gs_cen_2 = GenStats(sample_id=sample_cen_2.id, custom_coverage_250x=None)
+    gs_cen_1 = GenStats(sample_id=sample_cen_1.id, report_id=report_cen.id, custom_coverage_250x=None)
+    gs_cen_2 = GenStats(sample_id=sample_cen_2.id, report_id=report_cen.id, custom_coverage_250x=None)
 
     session.add_all([gs_mye_1, gs_mye_2, gs_cen_1, gs_cen_2])
     session.commit()
@@ -121,7 +124,7 @@ def test_clean_gen_stats_all_valid(session: Session):
         run_folder="RUN_VALID_001",
         date=datetime(2026, 1, 1),
         sequencer_id="A01303",
-        source="project-123456789012345678901234:file-123456789012345678901234",
+        **run_identity(),
         assay_id=assay.id,
     )
     session.add(run)
@@ -131,7 +134,8 @@ def test_clean_gen_stats_all_valid(session: Session):
     session.add(sample)
     session.commit()
 
-    gs = GenStats(sample_id=sample.id, custom_coverage_500x=88.2)
+    report = add_report(session, run)
+    gs = GenStats(sample_id=sample.id, report_id=report.id, custom_coverage_500x=88.2)
     session.add(gs)
     session.commit()
 

@@ -1,8 +1,8 @@
-# Verity: Interactive MultiQC Audit Tool
+# Verity: An Interactive MultiQC Audit Tool
 
 Verity is a comprehensive Quality Control (QC) audit and monitoring dashboard designed to visualise MultiQC metrics from bioinformatics pipelines. It provides an interactive interface to track trends over time, correlate different QC metrics, and explore data from DNAnexus projects.
 
-By aggregating data from MultiQC JSON reports, Verity enables bioinformaticians and lab scientists to monitor assay performance, identify outliers, and ensure data integrity across sequencing runs.
+Verity also enables bioinformaticians and lab scientists to monitor assay performance, identify outliers, and ensure data integrity across sequencing runs.
 
 ## Project Structure
 
@@ -22,7 +22,7 @@ Contains the source code for the Dash web application.
 ### `data/`
 Handles data ingestion, storage, and retrieval. This module is designed to be independent of the UI.
 - **`models/`**: Database schema definitions using **SQLModel**. Each bioinformatics tool (e.g. Picard, Samtools) has its own model.
-- **`queries/`**: Dedicated submodule for database interactions. Contains pure functions that accept parameters and return filtered DataFrames or results.
+- **`queries/`**: Dedicated submodule for database interactions. Contains pure functions that accept parameters and return filtered DataFrames.
 - **`plots/`**: Dedicated submodule for generating **Plotly** figures. Contains pure functions that take DataFrames and styling options to return graph objects.
 - **`utils/`**: Helper functions for data formatting and model introspection.
 - **`pipeline.py`**: The ETL (Extract, Transform, Load) script that interfaces with DNAnexus.
@@ -208,11 +208,3 @@ Replace `docker` with `podman` if using podman
 - **To view logs**: `docker logs verity-container`
 - **To stop the container**: `docker stop verity-container`
 - **To remove the container**: `docker rm verity-container`
-
-## TODO
-
-- **Duplicate run folder names.** `Run.run_folder` is not unique. A small number of runs
-  share a folder name because the data source reuses them, and Verity ingests them as
-  is. Pages that put runs on a category axis (Trends, Raincloud) merge runs with the
-  same folder name into one x position. Decide on a fix: deduplicate at the source, add
-  a unique constraint, or plot by run id with the folder name as the label.

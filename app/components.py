@@ -25,9 +25,28 @@ def create_warning_figure(message, height=None):
     return fig
 
 
-def create_plot_page_layout(controls_component, graph_id, hover_box_id, page_title):
+def create_plot_warnings(warnings: list[dict[str, str]]) -> list[dbc.Alert]:
     """
-    Creates the standard two-column layout for a plot page.
+    Turns {"level", "text"} warnings into dismissable alerts. An empty list
+    renders nothing, so the plot keeps its space when all is well.
+    """
+    return [
+        dbc.Alert(
+            dcc.Markdown(w["text"], className="mb-0"),
+            color=w.get("level", "warning"),
+            dismissable=True,
+            className="py-1 px-2 mb-1 small",
+        )
+        for w in warnings
+    ]
+
+
+def create_plot_page_layout(
+    controls_component, graph_id, hover_box_id, page_title, warnings_id=None
+):
+    """
+    Creates the standard two-column layout for a plot page. With warnings_id, an
+    area for plot warnings sits above the graph.
     """
     return dbc.Container(
         [
@@ -36,7 +55,8 @@ def create_plot_page_layout(controls_component, graph_id, hover_box_id, page_tit
                 [
                     dbc.Col(controls_component, md=3),
                     dbc.Col(
-                        [
+                        ([html.Div(id=warnings_id)] if warnings_id else [])
+                        + [
                             dcc.Loading(
                                 id=f"loading-{graph_id}",
                                 children=[dcc.Graph(id=graph_id)],

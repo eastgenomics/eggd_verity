@@ -21,10 +21,11 @@ def get_raincloud_data(
     columns_to_select = [
         Run.date,
         Run.run_folder.label("run_folder"),
+        Run.project_name.label("project_name"),
         getattr(tool_model, metric_name).label(metric_name),
         Assay.name.label("assay_name"),
     ]
-    df_cols = ["date", "run_folder", metric_name, "assay_name"]
+    df_cols = ["date", "run_folder", "project_name", metric_name, "assay_name"]
 
     if not is_run_level:
         columns_to_select.append(Sample.name.label("sample_name"))
@@ -79,11 +80,11 @@ def get_raincloud_data(
         return pd.DataFrame(columns=df_cols), grouping_args
 
     df = pd.DataFrame(results, columns=df_cols)
-    df = df.sort_values(["date", "run_folder"], ascending=True)
+    df = df.sort_values(["date", "project_name"], ascending=True)
     df["date"] = pd.to_datetime(df["date"]).dt.date
 
     if is_run_level:
-        df["sample_name"] = df["run_folder"]
+        df["sample_name"] = df["project_name"]
 
     df = format_categorical_columns(df, color_by, None, grouping_args)
     return df, grouping_args

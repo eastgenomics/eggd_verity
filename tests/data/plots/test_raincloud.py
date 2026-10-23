@@ -13,7 +13,7 @@ class TestRaincloudPlot:
         """Tests creating a standard raincloud figure."""
         df = pd.DataFrame(
             {
-                "run_folder": ["run1", "run1", "run2", "run2"],
+                "project_name": ["run1", "run1", "run2", "run2"],
                 "metric_val": [10, 12, 20, 22],
                 "sample_name": ["s1", "s2", "s3", "s4"],
                 "group": ["A", "A", "B", "B"],
@@ -37,7 +37,7 @@ class TestRaincloudPlot:
         """A colour that is constant per run (e.g. sequencer) gets a legend."""
         df = pd.DataFrame(
             {
-                "run_folder": ["run1", "run1", "run2", "run2", "run3", "run3"],
+                "project_name": ["run1", "run1", "run2", "run2", "run3", "run3"],
                 "metric_val": [10, 12, 20, 22, 30, 32],
                 "sample_name": [f"s{i}" for i in range(6)],
                 "run_sequencer_id": ["seqA", "seqA", "seqB", "seqB", "seqA", "seqA"],
@@ -66,7 +66,7 @@ class TestRaincloudPlot:
         """A colour that varies within a run colours the points, not the run."""
         df = pd.DataFrame(
             {
-                "run_folder": ["run1", "run1", "run2", "run2"],
+                "project_name": ["run1", "run1", "run2", "run2"],
                 "metric_val": [10, 12, 20, 22],
                 "sample_name": ["s1", "s2", "s3", "s4"],
                 "sample_sex": ["Male", "Female", "Male", None],
@@ -103,7 +103,7 @@ class TestRaincloudPlot:
         runs = [f"run{i:02d}" for i in range(12)]
         df = pd.DataFrame(
             {
-                "run_folder": runs,
+                "project_name": runs,
                 "metric_val": range(12),
                 "sample_name": runs,
             }
@@ -127,7 +127,7 @@ class TestRaincloudPlot:
         """The title names the assays, and each point carries its assay."""
         df = pd.DataFrame(
             {
-                "run_folder": ["run1", "run2"],
+                "project_name": ["run1", "run2"],
                 "metric_val": [10, 20],
                 "sample_name": ["s1", "s2"],
                 "assay_name": ["CEN38", "TSO500"],

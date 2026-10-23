@@ -12,7 +12,7 @@ import pandas as pd
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, SQLModel, select
 
-from data.models import Assay, BaseMetrics, Run
+from data.models import Assay, BaseMetrics, MultiQCReport, Run
 from data.utils.dnanexus import login_to_dnanexus, find_dx_projects, get_multiqc_reports, get_project_metadata
 from data.utils.multiqc import parse_multiqc_section, read_multiqc_data
 from data.utils.sample import get_or_create_run_samples
@@ -51,7 +51,8 @@ def get_or_create(
             return instance
 
     except IntegrityError as e:
-        if "UNIQUE constraint failed" in str(e):
+        # SQLite and Postgres word unique violations differently
+        if "UNIQUE constraint failed" in str(e) or "duplicate key value" in str(e):
             # Race condition: another thread created the same object
             session.rollback()
             # Blow up if not exactly one match
@@ -96,14 +97,22 @@ def process_report(
     logging.info(f"Starting processing for file: {source}")
 
     try:
+        with Session(engine) as session:
+            report = session.exec(
+                select(MultiQCReport).where(MultiQCReport.file_id == file_id)
+            ).first()
+            if report and report.processed_at:
+                logging.info(f"Skipping {source}, already processed.")
+                return
 
         metadata = get_project_metadata(project_id, file_id)
         run_folder = metadata["run_folder"]
+        project_name = metadata["project_name"]
 
         multiqc_data = read_multiqc_data(project_id, file_id)
 
         with Session(engine) as session:
-            # Get or Create Assay and Run Objects
+            # Get or Create Assay, Run and Report Objects
             assay = get_or_create(
                 session,
                 Assay,
@@ -112,17 +121,18 @@ def process_report(
             )
 
             run_defaults = {
+                "project_name": project_name,
                 "run_folder": run_folder,
                 "date": metadata["date"],
                 "sequencer_id": metadata["sequencer_id"],
                 "assay_id": assay.id,
             }
-            run = get_or_create(session, Run, source=source, defaults=run_defaults)
-
-            # Check if the run has already been processed
-            if run.processed_at:
-                logging.info(f"Skipping {run.run_folder}, already processed.")
-                return
+            run = get_or_create(
+                session, Run, project_id=project_id, defaults=run_defaults
+            )
+            report = get_or_create(
+                session, MultiQCReport, file_id=file_id, defaults={"run_id": run.id}
+            )
 
             sample_map = get_or_create_run_samples(
                 session=session,
@@ -130,7 +140,7 @@ def process_report(
                 run_id=run.id,
             )
             logging.info(
-                f"Identified {len(sample_map)} samples for run {run_folder}"
+                f"Identified {len(sample_map)} samples for run {project_name}"
             )
 
             for section_name, section_data in multiqc_data.items():
@@ -142,7 +152,7 @@ def process_report(
 
                 df = parse_multiqc_section(section_data)
                 if df.empty:
-                    logger.warning(f"Empty df for {section_name}")
+                    logger.warning(f"Empty df for {section_name} in {source}")
                     continue
 
                 logger.info(f"creating records for {section_name}")
@@ -151,21 +161,30 @@ def process_report(
                     session=session,
                     df=df,
                     run=run,
+                    report=report,
                     sample_map=sample_map,
                 )
                 logging.debug(f"Added {recs} records for {section_name}")
 
-            run.processed_at = datetime.now(timezone.utc)
+            report.processed_at = datetime.now(timezone.utc)
             session.commit()
             logging.info(
-                f"Successfully processed and committed records in {run_folder}"
+                f"Successfully processed and committed records in {source}"
             )
 
     except Exception as e:
-        logger.error(
-            f"Failed to process {run_folder} -- {source}: {e}",
-            exc_info=True,
-        )
+        logger.error(f"Failed to process {source}: {e}", exc_info=True)
+
+
+def process_project_reports(
+    project_id: str, file_ids: list[str], model_map: dict[str, Type[BaseMetrics]]
+) -> None:
+    """
+    Processes a project's reports one after another. Reports of one project share
+    the Run and its samples, so loading them in parallel would race to create them.
+    """
+    for file_id in file_ids:
+        process_report(project_id, file_id, model_map)
 
 
 def main(
@@ -191,7 +210,7 @@ def main(
     create_db_and_tables()
     model_map = get_mqc_to_models()
 
-    #login_to_dnanexus()
+    login_to_dnanexus()
 
     if not project_ids:
         logger.info(
@@ -218,11 +237,12 @@ def main(
         return
 
     logger.info(f"Starting ETL pipeline for {len(df)} MultiQC reports...")
-    n_workers = min(MAX_WORKERS, len(df))
+    reports_by_project = df.groupby("project_id", sort=False)["file_id"].apply(list)
+    n_workers = min(MAX_WORKERS, len(reports_by_project))
     with ThreadPoolExecutor(max_workers=n_workers) as executor:
         futures = [
-            executor.submit(process_report, row.project_id, row.file_id, model_map)
-            for row in df.itertuples(index=False)
+            executor.submit(process_project_reports, project_id, file_ids, model_map)
+            for project_id, file_ids in reports_by_project.items()
         ]
         for future in as_completed(futures):
             future.result()

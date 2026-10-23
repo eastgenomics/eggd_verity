@@ -1,8 +1,8 @@
-"""Initial migration
+"""baseline
 
-Revision ID: f67693ee953b
+Revision ID: 48175ebe7f29
 Revises: 
-Create Date: 2025-11-05 14:37:50.289178
+Create Date: 2026-10-22 14:39:08.141976
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import sqlmodel
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'f67693ee953b'
+revision: str = '48175ebe7f29'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,26 +26,64 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('ref_genome', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('active', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name', 'ref_genome', name='unique_assay_genome')
     )
-    op.create_index(op.f('ix_assay_name'), 'assay', ['name'], unique=False)
+    with op.batch_alter_table('assay', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_assay_name'), ['name'], unique=False)
+
     op.create_table('run',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('project_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('project_name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('run_folder', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('date', sa.DateTime(), nullable=False),
     sa.Column('sequencer_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('processed_at', sa.DateTime(), nullable=True),
     sa.Column('qc_status', sa.Enum('PASS', 'WARNING', 'FAIL', 'NOTREPORTED', name='qcstatus'), nullable=False),
-    sa.Column('source', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('assay_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['assay_id'], ['assay.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_run_run_folder'), 'run', ['run_folder'], unique=False)
-    op.create_index(op.f('ix_run_source'), 'run', ['source'], unique=True)
+    with op.batch_alter_table('run', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_run_project_id'), ['project_id'], unique=True)
+        batch_op.create_index(batch_op.f('ix_run_project_name'), ['project_name'], unique=True)
+        batch_op.create_index(batch_op.f('ix_run_run_folder'), ['run_folder'], unique=False)
+
+    op.create_table('multiqc_report',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('file_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('processed_at', sa.DateTime(), nullable=True),
+    sa.Column('run_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['run_id'], ['run.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('multiqc_report', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_multiqc_report_file_id'), ['file_id'], unique=True)
+        batch_op.create_index(batch_op.f('ix_multiqc_report_run_id'), ['run_id'], unique=False)
+
+    op.create_table('sample',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('sample_number', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('well_col', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('well_row', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('sex', sa.Enum('MALE', 'FEMALE', 'UNKNOWN', name='sexkaryotype'), nullable=False),
+    sa.Column('is_control', sa.Boolean(), nullable=False),
+    sa.Column('qc_status', sa.Enum('PASS', 'WARNING', 'FAIL', 'NOTREPORTED', name='qcstatus'), nullable=False),
+    sa.Column('batch', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('testcode', sa.Integer(), nullable=True),
+    sa.Column('run_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['run_id'], ['run.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name', 'run_id', name='unique_sample_in_run')
+    )
+    with op.batch_alter_table('sample', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_sample_name'), ['name'], unique=False)
+
     op.create_table('bcl2fastq_bylane',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('run_id', sa.Integer(), nullable=False),
     sa.Column('lane', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('total', sa.Integer(), nullable=False),
@@ -58,11 +96,41 @@ def upgrade() -> None:
     sa.Column('percent_perfectindex', sa.Float(), nullable=False),
     sa.Column('mean_qscore', sa.Float(), nullable=False),
     sa.Column('unknown_barcodes', sa.JSON(), nullable=True),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['run_id'], ['run.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('bcl2fastq_bylane', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_bcl2fastq_bylane_report_id'), ['report_id'], unique=False)
+
+    op.create_table('bcl2fastq_bysample',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
+    sa.Column('total', sa.Integer(), nullable=False),
+    sa.Column('total_yield', sa.Integer(), nullable=False),
+    sa.Column('perfectindex', sa.Integer(), nullable=False),
+    sa.Column('yieldq30', sa.Integer(), nullable=False),
+    sa.Column('qscore_sum', sa.Integer(), nullable=False),
+    sa.Column('r1_yield', sa.Integer(), nullable=True),
+    sa.Column('r1_q30', sa.Integer(), nullable=True),
+    sa.Column('r1_trimmed_bases', sa.Integer(), nullable=True),
+    sa.Column('r2_yield', sa.Integer(), nullable=True),
+    sa.Column('r2_q30', sa.Integer(), nullable=True),
+    sa.Column('r2_trimmed_bases', sa.Integer(), nullable=True),
+    sa.Column('percent_q30', sa.Float(), nullable=True),
+    sa.Column('percent_perfectindex', sa.Float(), nullable=True),
+    sa.Column('mean_qscore', sa.Float(), nullable=True),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
+    sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('bcl2fastq_bysample', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_bcl2fastq_bysample_report_id'), ['report_id'], unique=False)
+
     op.create_table('bclconvert_bylane',
     sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('run_id', sa.Integer(), nullable=False),
     sa.Column('lane', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('cluster_length', sa.Integer(), nullable=False),
@@ -79,73 +147,17 @@ def upgrade() -> None:
     sa.Column('mean_quality', sa.Float(), nullable=False),
     sa.Column('calculated_yield', sa.Integer(), nullable=False),
     sa.Column('top_unknown_barcodes', sa.JSON(), nullable=True),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['run_id'], ['run.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('interop_indexsummary',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('run_id', sa.Integer(), nullable=True),
-    sa.Column('lane', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('total_reads', sa.Integer(), nullable=False),
-    sa.Column('pf_reads', sa.Integer(), nullable=False),
-    sa.Column('pct_read_identified_pf', sa.Float(), nullable=False),
-    sa.Column('cv', sa.Float(), nullable=False),
-    sa.Column('min', sa.Float(), nullable=False),
-    sa.Column('max', sa.Float(), nullable=False),
-    sa.ForeignKeyConstraint(['run_id'], ['run.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_table('interop_runsummary',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('run_id', sa.Integer(), nullable=True),
-    sa.Column('read', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('yield_', sa.Float(), nullable=False),
-    sa.Column('projected_yield', sa.Float(), nullable=False),
-    sa.Column('aligned', sa.Float(), nullable=False),
-    sa.Column('error_rate', sa.Float(), nullable=True),
-    sa.Column('intensity_c1', sa.Integer(), nullable=False),
-    sa.Column('pct_q30', sa.Float(), nullable=False),
-    sa.Column('pct_occupied', sa.Float(), nullable=False),
-    sa.ForeignKeyConstraint(['run_id'], ['run.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_table('sample',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('sex', sa.Enum('MALE', 'FEMALE', 'UNKNOWN', name='sexkaryotype'), nullable=False),
-    sa.Column('is_control', sa.Boolean(), nullable=False),
-    sa.Column('qc_status', sa.Enum('PASS', 'WARNING', 'FAIL', 'NOTREPORTED', name='qcstatus'), nullable=False),
-    sa.Column('batch', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-    sa.Column('testcode', sa.Integer(), nullable=True),
-    sa.Column('run_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['run_id'], ['run.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('name', 'run_id', name='unique_sample_in_run')
-    )
-    op.create_index(op.f('ix_sample_name'), 'sample', ['name'], unique=False)
-    op.create_table('bcl2fastq_bysample',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('sample_id', sa.Integer(), nullable=False),
-    sa.Column('total', sa.Integer(), nullable=False),
-    sa.Column('total_yield', sa.Integer(), nullable=False),
-    sa.Column('perfectindex', sa.Integer(), nullable=False),
-    sa.Column('yieldq30', sa.Integer(), nullable=False),
-    sa.Column('qscore_sum', sa.Integer(), nullable=False),
-    sa.Column('r1_yield', sa.Integer(), nullable=True),
-    sa.Column('r1_q30', sa.Integer(), nullable=True),
-    sa.Column('r1_trimmed_bases', sa.Integer(), nullable=True),
-    sa.Column('r2_yield', sa.Integer(), nullable=True),
-    sa.Column('r2_q30', sa.Integer(), nullable=True),
-    sa.Column('r2_trimmed_bases', sa.Integer(), nullable=True),
-    sa.Column('percent_q30', sa.Float(), nullable=True),
-    sa.Column('percent_perfectindex', sa.Float(), nullable=True),
-    sa.Column('mean_qscore', sa.Float(), nullable=True),
-    sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
+    with op.batch_alter_table('bclconvert_bylane', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_bclconvert_bylane_report_id'), ['report_id'], unique=False)
+
     op.create_table('bclconvert_bysample',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('cluster_length', sa.Integer(), nullable=False),
     sa.Column('clusters', sa.Integer(), nullable=False),
     sa.Column('perfect_index_reads', sa.Integer(), nullable=False),
@@ -159,13 +171,17 @@ def upgrade() -> None:
     sa.Column('percent_yield_q30', sa.Float(), nullable=False),
     sa.Column('mean_quality', sa.Float(), nullable=False),
     sa.Column('calculated_yield', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('bclconvert_bysample', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_bclconvert_bysample_report_id'), ['report_id'], unique=False)
+
     op.create_table('fastqc',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
-    sa.Column('flow_cell', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('lane', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('read_pair', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('total_unique_reads', sa.Integer(), nullable=True),
@@ -190,12 +206,32 @@ def upgrade() -> None:
     sa.Column('sequence_duplication_levels', sa.Enum('PASS', 'WARNING', 'FAIL', 'NOTREPORTED', name='qcstatus'), nullable=False),
     sa.Column('overrepresented_sequences', sa.Enum('PASS', 'WARNING', 'FAIL', 'NOTREPORTED', name='qcstatus'), nullable=False),
     sa.Column('adapter_content', sa.Enum('PASS', 'WARNING', 'FAIL', 'NOTREPORTED', name='qcstatus'), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('fastqc', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_fastqc_report_id'), ['report_id'], unique=False)
+
+    op.create_table('gen_stats',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
+    sa.Column('custom_coverage_250x', sa.Float(), nullable=True),
+    sa.Column('custom_coverage_500x', sa.Float(), nullable=True),
+    sa.Column('custom_coverage_1000x', sa.Float(), nullable=True),
+    sa.Column('custom_coverage_usable_unique_bases_on_target', sa.Float(), nullable=True),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
+    sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('gen_stats', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_gen_stats_report_id'), ['report_id'], unique=False)
+
     op.create_table('happy_indel',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('filter_indel', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('truth_total_indel', sa.Integer(), nullable=False),
     sa.Column('truth_tp_indel', sa.Integer(), nullable=False),
@@ -212,12 +248,17 @@ def upgrade() -> None:
     sa.Column('query_total_titv_ratio_indel', sa.Float(), nullable=True),
     sa.Column('truth_total_het_hom_ratio_indel', sa.Float(), nullable=False),
     sa.Column('query_total_het_hom_ratio_indel', sa.Float(), nullable=True),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('happy_indel', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_happy_indel_report_id'), ['report_id'], unique=False)
+
     op.create_table('happy_snp',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('filter_snp', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('truth_total_snp', sa.Integer(), nullable=False),
     sa.Column('truth_tp_snp', sa.Integer(), nullable=False),
@@ -234,12 +275,54 @@ def upgrade() -> None:
     sa.Column('query_total_titv_ratio_snp', sa.Float(), nullable=True),
     sa.Column('truth_total_het_hom_ratio_snp', sa.Float(), nullable=False),
     sa.Column('query_total_het_hom_ratio_snp', sa.Float(), nullable=True),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('happy_snp', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_happy_snp_report_id'), ['report_id'], unique=False)
+
+    op.create_table('interop_indexsummary',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
+    sa.Column('run_id', sa.Integer(), nullable=True),
+    sa.Column('lane', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('total_reads', sa.Integer(), nullable=False),
+    sa.Column('pf_reads', sa.Integer(), nullable=False),
+    sa.Column('pct_read_identified_pf', sa.Float(), nullable=False),
+    sa.Column('cv', sa.Float(), nullable=False),
+    sa.Column('min', sa.Float(), nullable=False),
+    sa.Column('max', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
+    sa.ForeignKeyConstraint(['run_id'], ['run.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('interop_indexsummary', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_interop_indexsummary_report_id'), ['report_id'], unique=False)
+
+    op.create_table('interop_runsummary',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
+    sa.Column('run_id', sa.Integer(), nullable=True),
+    sa.Column('read', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+    sa.Column('yield_', sa.Float(), nullable=False),
+    sa.Column('projected_yield', sa.Float(), nullable=False),
+    sa.Column('aligned', sa.Float(), nullable=False),
+    sa.Column('error_rate', sa.Float(), nullable=True),
+    sa.Column('intensity_c1', sa.Integer(), nullable=False),
+    sa.Column('pct_q30', sa.Float(), nullable=False),
+    sa.Column('pct_occupied', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
+    sa.ForeignKeyConstraint(['run_id'], ['run.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('interop_runsummary', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_interop_runsummary_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_alignment_summary_metrics',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('category', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('total_reads', sa.Integer(), nullable=False),
     sa.Column('pf_reads', sa.Integer(), nullable=False),
@@ -264,13 +347,17 @@ def upgrade() -> None:
     sa.Column('strand_balance', sa.Float(), nullable=False),
     sa.Column('pct_chimeras', sa.Float(), nullable=False),
     sa.Column('pct_adapter', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_alignment_summary_metrics', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_alignment_summary_metrics_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_base_content',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
-    sa.Column('flow_cell', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('lane', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('read_pair', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('sum_pct_a', sa.Float(), nullable=False),
@@ -283,12 +370,17 @@ def upgrade() -> None:
     sa.Column('mean_pct_c', sa.Float(), nullable=False),
     sa.Column('mean_pct_g', sa.Float(), nullable=False),
     sa.Column('mean_pct_t', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_base_content', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_base_content_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_dups',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('library', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('unpaired_reads_examined', sa.Integer(), nullable=False),
     sa.Column('read_pairs_examined', sa.Integer(), nullable=False),
@@ -306,12 +398,17 @@ def upgrade() -> None:
     sa.Column('reads_in_duplicate_pairs_nonoptical', sa.Integer(), nullable=True),
     sa.Column('reads_in_duplicate_unpaired', sa.Integer(), nullable=True),
     sa.Column('reads_unmapped', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_dups', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_dups_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_gcbias',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('accumulation_level', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('reads_used', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('window_size', sa.Integer(), nullable=False),
@@ -324,12 +421,17 @@ def upgrade() -> None:
     sa.Column('gc_nc_40_59', sa.Float(), nullable=False),
     sa.Column('gc_nc_60_79', sa.Float(), nullable=False),
     sa.Column('gc_nc_80_100', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_gcbias', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_gcbias_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_hs_metrics',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('bait_set', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('bait_territory', sa.Integer(), nullable=False),
     sa.Column('bait_design_efficiency', sa.Integer(), nullable=False),
@@ -387,12 +489,17 @@ def upgrade() -> None:
     sa.Column('gc_dropout', sa.Float(), nullable=False),
     sa.Column('het_snp_sensitivity', sa.Float(), nullable=False),
     sa.Column('het_snp_q', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_hs_metrics', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_hs_metrics_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_insert_size',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('median_insert_size', sa.Float(), nullable=False),
     sa.Column('mode_insert_size', sa.Float(), nullable=True),
     sa.Column('median_absolute_deviation', sa.Float(), nullable=False),
@@ -413,12 +520,17 @@ def upgrade() -> None:
     sa.Column('width_of_90_percent', sa.Integer(), nullable=False),
     sa.Column('width_of_95_percent', sa.Integer(), nullable=True),
     sa.Column('width_of_99_percent', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_insert_size', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_insert_size_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_pcr_metrics',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('custom_amplicon_set', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('amplicon_territory', sa.Integer(), nullable=False),
     sa.Column('on_amplicon_bases', sa.Integer(), nullable=False),
@@ -469,12 +581,17 @@ def upgrade() -> None:
     sa.Column('gc_dropout', sa.Float(), nullable=False),
     sa.Column('het_snp_sensitivity', sa.Float(), nullable=False),
     sa.Column('het_snp_q', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_pcr_metrics', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_pcr_metrics_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_quality_yield_metrics',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('total_reads', sa.Integer(), nullable=False),
     sa.Column('pf_reads', sa.Integer(), nullable=False),
     sa.Column('read_length', sa.Integer(), nullable=False),
@@ -486,12 +603,17 @@ def upgrade() -> None:
     sa.Column('pf_q30_bases', sa.Integer(), nullable=False),
     sa.Column('q20_equivalent_yield', sa.Integer(), nullable=False),
     sa.Column('pf_q20_equivalent_yield', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_quality_yield_metrics', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_quality_yield_metrics_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_rnaseq_metrics',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('pf_bases', sa.Integer(), nullable=False),
     sa.Column('pf_aligned_bases', sa.Integer(), nullable=False),
     sa.Column('coding_bases', sa.Integer(), nullable=False),
@@ -518,27 +640,32 @@ def upgrade() -> None:
     sa.Column('median_3prime_bias', sa.Float(), nullable=False),
     sa.Column('median_5prime_to_3prime_bias', sa.Float(), nullable=False),
     sa.Column('pf_not_aligned_bases', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_rnaseq_metrics', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_rnaseq_metrics_report_id'), ['report_id'], unique=False)
+
     op.create_table('picard_variant_calling',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('het_homvar_ratio', sa.Float(), nullable=True),
-    sa.Column('pct_gq0_variants', sa.Float(), nullable=False),
+    sa.Column('pct_gq0_variants', sa.Float(), nullable=True),
     sa.Column('total_gq0_variants', sa.Integer(), nullable=False),
     sa.Column('total_het_depth', sa.Integer(), nullable=False),
     sa.Column('total_snps', sa.Integer(), nullable=False),
     sa.Column('num_in_db_snp', sa.Integer(), nullable=False),
     sa.Column('novel_snps', sa.Integer(), nullable=False),
     sa.Column('filtered_snps', sa.Integer(), nullable=False),
-    sa.Column('pct_dbsnp', sa.Float(), nullable=False),
+    sa.Column('pct_dbsnp', sa.Float(), nullable=True),
     sa.Column('dbsnp_titv', sa.Float(), nullable=False),
     sa.Column('novel_titv', sa.Float(), nullable=False),
     sa.Column('total_indels', sa.Integer(), nullable=False),
     sa.Column('novel_indels', sa.Integer(), nullable=False),
     sa.Column('filtered_indels', sa.Integer(), nullable=False),
-    sa.Column('pct_dbsnp_indels', sa.Float(), nullable=False),
+    sa.Column('pct_dbsnp_indels', sa.Float(), nullable=True),
     sa.Column('num_in_db_snp_indels', sa.Integer(), nullable=False),
     sa.Column('dbsnp_ins_del_ratio', sa.Float(), nullable=False),
     sa.Column('novel_ins_del_ratio', sa.Float(), nullable=False),
@@ -546,17 +673,22 @@ def upgrade() -> None:
     sa.Column('num_in_db_snp_multiallelic', sa.Integer(), nullable=False),
     sa.Column('total_complex_indels', sa.Integer(), nullable=False),
     sa.Column('num_in_db_snp_complex_indels', sa.Integer(), nullable=False),
-    sa.Column('snp_reference_bias', sa.Float(), nullable=False),
+    sa.Column('snp_reference_bias', sa.Float(), nullable=True),
     sa.Column('num_singletons', sa.Integer(), nullable=False),
     sa.Column('total_called_variants', sa.Integer(), nullable=False),
     sa.Column('total_called_variants_known', sa.Integer(), nullable=False),
     sa.Column('total_called_variants_novel', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('picard_variant_calling', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_picard_variant_calling_report_id'), ['report_id'], unique=False)
+
     op.create_table('rna_seqc',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('mapping_rate', sa.Float(), nullable=False),
     sa.Column('unique_rate_of_mapped', sa.Integer(), nullable=False),
     sa.Column('duplicate_rate_of_mapped', sa.Integer(), nullable=False),
@@ -638,12 +770,17 @@ def upgrade() -> None:
     sa.Column('median_of_transcript_coverage_cv', sa.Float(), nullable=False),
     sa.Column('median_exon_cv', sa.Float(), nullable=False),
     sa.Column('exon_cv_mad', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('rna_seqc', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_rna_seqc_report_id'), ['report_id'], unique=False)
+
     op.create_table('samtools_flagstat',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('total_passed', sa.Integer(), nullable=False),
     sa.Column('total_failed', sa.Integer(), nullable=False),
     sa.Column('secondary_passed', sa.Integer(), nullable=False),
@@ -677,12 +814,17 @@ def upgrade() -> None:
     sa.Column('with_mate_mapped_to_a_different_chr_mapq_5_passed', sa.Integer(), nullable=False),
     sa.Column('with_mate_mapped_to_a_different_chr_mapq_5_failed', sa.Integer(), nullable=False),
     sa.Column('flagstat_total', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('samtools_flagstat', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_samtools_flagstat_report_id'), ['report_id'], unique=False)
+
     op.create_table('sentieon_alignment_summary_metrics',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('category', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('total_reads', sa.Integer(), nullable=False),
     sa.Column('pf_reads', sa.Integer(), nullable=False),
@@ -705,12 +847,17 @@ def upgrade() -> None:
     sa.Column('strand_balance', sa.Float(), nullable=False),
     sa.Column('pct_chimeras', sa.Float(), nullable=False),
     sa.Column('pct_adapter', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('sentieon_alignment_summary_metrics', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_sentieon_alignment_summary_metrics_report_id'), ['report_id'], unique=False)
+
     op.create_table('sentieon_insert_size',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('median_insert_size', sa.Integer(), nullable=False),
     sa.Column('median_absolute_deviation', sa.Float(), nullable=False),
     sa.Column('min_insert_size', sa.Integer(), nullable=False),
@@ -729,24 +876,34 @@ def upgrade() -> None:
     sa.Column('width_of_80_percent', sa.Integer(), nullable=False),
     sa.Column('width_of_90_percent', sa.Integer(), nullable=False),
     sa.Column('width_of_99_percent', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('sentieon_insert_size', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_sentieon_insert_size_report_id'), ['report_id'], unique=False)
+
     op.create_table('sex_check',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('matched', sa.Boolean(), nullable=True),
     sa.Column('reported_sex', sa.Enum('MALE', 'FEMALE', 'UNKNOWN', name='sexkaryotype'), nullable=False),
     sa.Column('predicted_sex', sa.Enum('MALE', 'FEMALE', 'UNKNOWN', name='sexkaryotype'), nullable=False),
     sa.Column('score', sa.Float(), nullable=False),
     sa.Column('mapped_chry', sa.Integer(), nullable=False),
     sa.Column('mapped_chr1', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('sex_check', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_sex_check_report_id'), ['report_id'], unique=False)
+
     op.create_table('somalier_sex_check',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('paternal_id', sa.Integer(), nullable=False),
     sa.Column('maternal_id', sa.Integer(), nullable=False),
     sa.Column('family_id', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
@@ -773,12 +930,46 @@ def upgrade() -> None:
     sa.Column('y_n', sa.Integer(), nullable=False),
     sa.Column('predicted_sex', sa.Enum('MALE', 'FEMALE', 'UNKNOWN', name='sexkaryotype'), nullable=False),
     sa.Column('match_sexes', sa.Boolean(), nullable=True),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('somalier_sex_check', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_somalier_sex_check_report_id'), ['report_id'], unique=False)
+
+    op.create_table('somp_snv',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
+    sa.Column('total_truth_snv', sa.Integer(), nullable=False),
+    sa.Column('total_query_snv', sa.Integer(), nullable=False),
+    sa.Column('tp_snv', sa.Integer(), nullable=False),
+    sa.Column('fp_snv', sa.Integer(), nullable=False),
+    sa.Column('fn_snv', sa.Integer(), nullable=False),
+    sa.Column('unk_snv', sa.Integer(), nullable=False),
+    sa.Column('ambi_snv', sa.Integer(), nullable=False),
+    sa.Column('recall_snv', sa.Float(), nullable=False),
+    sa.Column('recall_lower_snv', sa.Float(), nullable=False),
+    sa.Column('recall_upper_snv', sa.Float(), nullable=False),
+    sa.Column('recall2_snv', sa.Float(), nullable=False),
+    sa.Column('precision_snv', sa.Float(), nullable=False),
+    sa.Column('precision_lower_snv', sa.Float(), nullable=False),
+    sa.Column('precision_upper_snv', sa.Float(), nullable=False),
+    sa.Column('na_snv', sa.Float(), nullable=False),
+    sa.Column('ambiguous_snv', sa.Float(), nullable=False),
+    sa.Column('fp_region_size_snv', sa.Float(), nullable=False),
+    sa.Column('fp_rate_snv', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
+    sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('somp_snv', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_somp_snv_report_id'), ['report_id'], unique=False)
+
     op.create_table('sompy',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('indels_total_truth', sa.Integer(), nullable=False),
     sa.Column('indels_total_query', sa.Integer(), nullable=False),
     sa.Column('indels_tp', sa.Integer(), nullable=False),
@@ -833,12 +1024,75 @@ def upgrade() -> None:
     sa.Column('records_ambiguous', sa.Integer(), nullable=False),
     sa.Column('records_fp_region_size', sa.Integer(), nullable=False),
     sa.Column('records_fp_rate', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('sompy', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_sompy_report_id'), ['report_id'], unique=False)
+
+    op.create_table('sompy_combined',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
+    sa.Column('total_truth_combined', sa.Integer(), nullable=False),
+    sa.Column('total_query_combined', sa.Integer(), nullable=False),
+    sa.Column('tp_combined', sa.Integer(), nullable=False),
+    sa.Column('fp_combined', sa.Integer(), nullable=False),
+    sa.Column('fn_combined', sa.Integer(), nullable=False),
+    sa.Column('unk_combined', sa.Integer(), nullable=False),
+    sa.Column('ambi_combined', sa.Integer(), nullable=False),
+    sa.Column('recall_combined', sa.Float(), nullable=False),
+    sa.Column('recall_lower_combined', sa.Float(), nullable=False),
+    sa.Column('recall_upper_combined', sa.Float(), nullable=False),
+    sa.Column('recall2_combined', sa.Float(), nullable=False),
+    sa.Column('precision_combined', sa.Float(), nullable=False),
+    sa.Column('precision_lower_combined', sa.Float(), nullable=False),
+    sa.Column('precision_upper_combined', sa.Float(), nullable=False),
+    sa.Column('na_combined', sa.Float(), nullable=False),
+    sa.Column('ambiguous_combined', sa.Float(), nullable=False),
+    sa.Column('fp_region_size_combined', sa.Float(), nullable=False),
+    sa.Column('fp_rate_combined', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
+    sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('sompy_combined', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_sompy_combined_report_id'), ['report_id'], unique=False)
+
+    op.create_table('sompy_indel',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
+    sa.Column('total_truth_indel', sa.Integer(), nullable=False),
+    sa.Column('total_query_indel', sa.Integer(), nullable=False),
+    sa.Column('tp_indel', sa.Integer(), nullable=False),
+    sa.Column('fp_indel', sa.Integer(), nullable=False),
+    sa.Column('fn_indel', sa.Integer(), nullable=False),
+    sa.Column('unk_indel', sa.Integer(), nullable=False),
+    sa.Column('ambi_indel', sa.Integer(), nullable=False),
+    sa.Column('recall_indel', sa.Float(), nullable=False),
+    sa.Column('recall_lower_indel', sa.Float(), nullable=False),
+    sa.Column('recall_upper_indel', sa.Float(), nullable=False),
+    sa.Column('recall2_indel', sa.Float(), nullable=False),
+    sa.Column('precision_indel', sa.Float(), nullable=False),
+    sa.Column('precision_lower_indel', sa.Float(), nullable=False),
+    sa.Column('precision_upper_indel', sa.Float(), nullable=False),
+    sa.Column('na_indel', sa.Float(), nullable=False),
+    sa.Column('ambiguous_indel', sa.Float(), nullable=False),
+    sa.Column('fp_region_size_indel', sa.Float(), nullable=False),
+    sa.Column('fp_rate_indel', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
+    sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('sompy_indel', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_sompy_indel_report_id'), ['report_id'], unique=False)
+
     op.create_table('tso500_metrics_output_dna',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('completed_all_steps', sa.Boolean(), nullable=False),
     sa.Column('failed_steps', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
     sa.Column('steps_not_executed', sqlmodel.sql.sqltypes.AutoString(), nullable=True),
@@ -851,23 +1105,33 @@ def upgrade() -> None:
     sa.Column('coverage_mad', sa.Float(), nullable=True),
     sa.Column('median_bin_count_cnv_target', sa.Float(), nullable=True),
     sa.Column('contamination_summary', sa.Boolean(), nullable=True),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('tso500_metrics_output_dna', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_tso500_metrics_output_dna_report_id'), ['report_id'], unique=False)
+
     op.create_table('vcfqc_hethom',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('mean_het', sa.Float(), nullable=False),
     sa.Column('mean_hom', sa.Float(), nullable=False),
     sa.Column('het_hom_ratio', sa.Float(), nullable=False),
     sa.Column('x_het_hom_ratio', sa.Float(), nullable=False),
     sa.Column('gender', sa.Enum('MALE', 'FEMALE', 'UNKNOWN', name='sexkaryotype'), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('vcfqc_hethom', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_vcfqc_hethom_report_id'), ['report_id'], unique=False)
+
     op.create_table('verifybamid',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sample_id', sa.Integer(), nullable=False),
+    sa.Column('report_id', sa.Integer(), nullable=False),
     sa.Column('rg', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('snps', sa.Integer(), nullable=False),
     sa.Column('reads', sa.Integer(), nullable=False),
@@ -875,49 +1139,168 @@ def upgrade() -> None:
     sa.Column('freemix', sa.Float(), nullable=False),
     sa.Column('freelk1', sa.Float(), nullable=False),
     sa.Column('freelk0', sa.Float(), nullable=False),
+    sa.ForeignKeyConstraint(['report_id'], ['multiqc_report.id'], ),
     sa.ForeignKeyConstraint(['sample_id'], ['sample.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    with op.batch_alter_table('verifybamid', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_verifybamid_report_id'), ['report_id'], unique=False)
+
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    with op.batch_alter_table('verifybamid', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_verifybamid_report_id'))
+
     op.drop_table('verifybamid')
+    with op.batch_alter_table('vcfqc_hethom', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_vcfqc_hethom_report_id'))
+
     op.drop_table('vcfqc_hethom')
+    with op.batch_alter_table('tso500_metrics_output_dna', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_tso500_metrics_output_dna_report_id'))
+
     op.drop_table('tso500_metrics_output_dna')
+    with op.batch_alter_table('sompy_indel', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_sompy_indel_report_id'))
+
+    op.drop_table('sompy_indel')
+    with op.batch_alter_table('sompy_combined', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_sompy_combined_report_id'))
+
+    op.drop_table('sompy_combined')
+    with op.batch_alter_table('sompy', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_sompy_report_id'))
+
     op.drop_table('sompy')
+    with op.batch_alter_table('somp_snv', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_somp_snv_report_id'))
+
+    op.drop_table('somp_snv')
+    with op.batch_alter_table('somalier_sex_check', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_somalier_sex_check_report_id'))
+
     op.drop_table('somalier_sex_check')
+    with op.batch_alter_table('sex_check', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_sex_check_report_id'))
+
     op.drop_table('sex_check')
+    with op.batch_alter_table('sentieon_insert_size', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_sentieon_insert_size_report_id'))
+
     op.drop_table('sentieon_insert_size')
+    with op.batch_alter_table('sentieon_alignment_summary_metrics', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_sentieon_alignment_summary_metrics_report_id'))
+
     op.drop_table('sentieon_alignment_summary_metrics')
+    with op.batch_alter_table('samtools_flagstat', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_samtools_flagstat_report_id'))
+
     op.drop_table('samtools_flagstat')
+    with op.batch_alter_table('rna_seqc', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_rna_seqc_report_id'))
+
     op.drop_table('rna_seqc')
+    with op.batch_alter_table('picard_variant_calling', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_variant_calling_report_id'))
+
     op.drop_table('picard_variant_calling')
+    with op.batch_alter_table('picard_rnaseq_metrics', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_rnaseq_metrics_report_id'))
+
     op.drop_table('picard_rnaseq_metrics')
+    with op.batch_alter_table('picard_quality_yield_metrics', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_quality_yield_metrics_report_id'))
+
     op.drop_table('picard_quality_yield_metrics')
+    with op.batch_alter_table('picard_pcr_metrics', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_pcr_metrics_report_id'))
+
     op.drop_table('picard_pcr_metrics')
+    with op.batch_alter_table('picard_insert_size', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_insert_size_report_id'))
+
     op.drop_table('picard_insert_size')
+    with op.batch_alter_table('picard_hs_metrics', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_hs_metrics_report_id'))
+
     op.drop_table('picard_hs_metrics')
+    with op.batch_alter_table('picard_gcbias', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_gcbias_report_id'))
+
     op.drop_table('picard_gcbias')
+    with op.batch_alter_table('picard_dups', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_dups_report_id'))
+
     op.drop_table('picard_dups')
+    with op.batch_alter_table('picard_base_content', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_base_content_report_id'))
+
     op.drop_table('picard_base_content')
+    with op.batch_alter_table('picard_alignment_summary_metrics', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_picard_alignment_summary_metrics_report_id'))
+
     op.drop_table('picard_alignment_summary_metrics')
-    op.drop_table('happy_snp')
-    op.drop_table('happy_indel')
-    op.drop_table('fastqc')
-    op.drop_table('bclconvert_bysample')
-    op.drop_table('bcl2fastq_bysample')
-    op.drop_index(op.f('ix_sample_name'), table_name='sample')
-    op.drop_table('sample')
+    with op.batch_alter_table('interop_runsummary', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_interop_runsummary_report_id'))
+
     op.drop_table('interop_runsummary')
+    with op.batch_alter_table('interop_indexsummary', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_interop_indexsummary_report_id'))
+
     op.drop_table('interop_indexsummary')
+    with op.batch_alter_table('happy_snp', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_happy_snp_report_id'))
+
+    op.drop_table('happy_snp')
+    with op.batch_alter_table('happy_indel', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_happy_indel_report_id'))
+
+    op.drop_table('happy_indel')
+    with op.batch_alter_table('gen_stats', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_gen_stats_report_id'))
+
+    op.drop_table('gen_stats')
+    with op.batch_alter_table('fastqc', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_fastqc_report_id'))
+
+    op.drop_table('fastqc')
+    with op.batch_alter_table('bclconvert_bysample', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_bclconvert_bysample_report_id'))
+
+    op.drop_table('bclconvert_bysample')
+    with op.batch_alter_table('bclconvert_bylane', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_bclconvert_bylane_report_id'))
+
     op.drop_table('bclconvert_bylane')
+    with op.batch_alter_table('bcl2fastq_bysample', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_bcl2fastq_bysample_report_id'))
+
+    op.drop_table('bcl2fastq_bysample')
+    with op.batch_alter_table('bcl2fastq_bylane', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_bcl2fastq_bylane_report_id'))
+
     op.drop_table('bcl2fastq_bylane')
-    op.drop_index(op.f('ix_run_source'), table_name='run')
-    op.drop_index(op.f('ix_run_run_folder'), table_name='run')
+    with op.batch_alter_table('sample', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_sample_name'))
+
+    op.drop_table('sample')
+    with op.batch_alter_table('multiqc_report', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_multiqc_report_run_id'))
+        batch_op.drop_index(batch_op.f('ix_multiqc_report_file_id'))
+
+    op.drop_table('multiqc_report')
+    with op.batch_alter_table('run', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_run_run_folder'))
+        batch_op.drop_index(batch_op.f('ix_run_project_name'))
+        batch_op.drop_index(batch_op.f('ix_run_project_id'))
+
     op.drop_table('run')
-    op.drop_index(op.f('ix_assay_name'), table_name='assay')
+    with op.batch_alter_table('assay', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_assay_name'))
+
     op.drop_table('assay')
     # ### end Alembic commands ###

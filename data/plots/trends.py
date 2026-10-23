@@ -2,8 +2,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Run folder names are long, so x tick labels are cut to this many characters.
-# The full name is still shown in the hover.
+from data.utils.formatting import run_label
+
+# Project names are long, so x tick labels drop the number prefix and are cut to
+# this many characters. The full name is still shown in the hover.
 MAX_RUN_LABEL_LENGTH = 20
 FIGURE_HEIGHT = 580
 
@@ -32,11 +34,11 @@ def create_trends_figure(
     df = df.copy()
     is_multi_metric = len(metric_names) > 1
     is_box = plot_type == "box"
-    hover_name = "sample_name" if not is_run_level else "run_folder"
+    hover_name = "sample_name" if not is_run_level else "project_name"
 
     # Runs arrive sorted by date. Fix the category order explicitly, otherwise
     # Plotly orders runs by first appearance across traces when grouping is on.
-    ordered_runs = list(df["run_folder"].unique())
+    ordered_runs = list(df["project_name"].unique())
 
     def plot(data, **kwargs):
         if is_box:
@@ -46,7 +48,7 @@ def create_trends_figure(
         return px.scatter(data, **kwargs)
 
     if is_multi_metric:
-        id_vars = ["date", "run_folder"]
+        id_vars = ["date", "project_name"]
         if not is_run_level:
             id_vars.append("sample_name")
         if symbol_col:
@@ -66,15 +68,15 @@ def create_trends_figure(
 
         fig = plot(
             df_long,
-            x="run_folder",
+            x="project_name",
             y="Value",
             color="Metric",
             symbol=symbol_col,
             hover_name=hover_name,
-            custom_data=["run_folder", "date", "Metric"],
-            category_orders={"run_folder": ordered_runs},
+            custom_data=["project_name", "date", "Metric"],
+            category_orders={"project_name": ordered_runs},
             title=f"Trends for {tool_name}",
-            labels={"Value": "Value (Z-score)", "run_folder": "Run"},
+            labels={"Value": "Value (Z-score)", "project_name": "Run"},
         )
         fig.update_traces(
             hovertemplate=(
@@ -99,15 +101,15 @@ def create_trends_figure(
 
         fig = plot(
             df,
-            x="run_folder",
+            x="project_name",
             y="metric_value",
             color=color_col,
             symbol=symbol_col,
             hover_name=hover_name,
-            custom_data=["run_folder", "date"],
-            category_orders={"run_folder": ordered_runs},
+            custom_data=["project_name", "date"],
+            category_orders={"project_name": ordered_runs},
             title=f"Trend for {tool_name}: {metric_label}",
-            labels={"metric_value": metric_label, "run_folder": "Run"},
+            labels={"metric_value": metric_label, "project_name": "Run"},
         )
         fig.update_traces(
             hovertemplate=(
@@ -154,7 +156,7 @@ def create_trends_figure(
         tickangle=-45,
         tickmode="array",
         tickvals=ordered_runs,
-        ticktext=[truncate_label(run) for run in ordered_runs],
+        ticktext=[truncate_label(run_label(run)) for run in ordered_runs],
         tickfont=dict(size=10),
     )
     fig.update_layout(

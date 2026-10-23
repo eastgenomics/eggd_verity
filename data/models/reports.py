@@ -63,8 +63,12 @@ def _get_categorical_fields(cls) -> list[str]:
         "run_id",
         "assay_id",
         "source",
+        "project_id",
+        "project_name",
+        "file_id",
         "filename",
         "sample",
+        "sample_number",
         "name",
         "library",
         "rg",
@@ -115,26 +119,25 @@ class Assay(SQLModel, table=True):
 
 
 class Run(SQLModel, table=True):
-    """Model for a sequencing run, usually corresponds to a DNAnexus project."""
+    """
+    Model for a sequencing run of one assay, i.e. one DNAnexus project.
+    """
 
     __tablename__ = "run"
     id: int | None = Field(default=None, primary_key=True)
+    project_id: Annotated[
+        str, StringConstraints(pattern=r"^project-[a-zA-Z0-9]{24}$")
+    ] = Field(unique=True, index=True, description="DNAnexus project ID")
+    project_name: str = Field(
+        unique=True,
+        index=True,
+        description="DNAnexus project name (e.g. 002_261016_A01295_0866_BHV232DRX7_HRD)",
+    )
     run_folder: str = Field(index=True, description="Name of the sequencing run")
     date: datetime = Field(description="Date of the sequencing run")
     sequencer_id: str = Field(description="ID of the sequencing instrument")
-    processed_at: datetime | None = Field(
-        default=None, description="Timestamp of when the report was added to DB"
-    )
     qc_status: QCStatus = Field(
         default=QCStatus.NOTREPORTED, description="The QC status of this run"
-    )
-    source: Annotated[
-        str,
-        StringConstraints(pattern=r"^project-[a-zA-Z0-9]{24}:file-[a-zA-Z0-9]{24}$"),
-    ] = Field(
-        unique=True,
-        index=True,
-        description="DNAnexus file ID of the source multiqc json file",
     )
 
     assay_id: int = Field(
@@ -142,6 +145,7 @@ class Run(SQLModel, table=True):
     )
     assay: "Assay" = Relationship(back_populates="runs")
     samples: list["Sample"] = Relationship(back_populates="run")
+    reports: list["MultiQCReport"] = Relationship(back_populates="run")
 
     # Relationships to all associated run-level metrics for this run
     bcl2fastq_bylane_metrics: list["Bcl2fastqByLane"] = Relationship(
@@ -159,6 +163,31 @@ class Run(SQLModel, table=True):
     @classproperty
     def categorical_fields(cls) -> list[str]:
         return _get_categorical_fields(cls)
+
+
+class MultiQCReport(SQLModel, table=True):
+    """
+    A MultiQC JSON file in a run's DNAnexus project. Every metric row points to
+    the report it was loaded from.
+
+    A project normally has one report. Older projects can have several reports
+    holding different samples, and a pipeline rerun adds a second report with the
+    same samples (a duplicate, removed with data.manager.remove_data_source).
+    """
+
+    __tablename__ = "multiqc_report"
+    id: int | None = Field(default=None, primary_key=True)
+    file_id: Annotated[str, StringConstraints(pattern=r"^file-[a-zA-Z0-9]{24}$")] = (
+        Field(unique=True, index=True, description="DNAnexus file ID of the report")
+    )
+    processed_at: datetime | None = Field(
+        default=None, description="Timestamp of when the report was added to DB"
+    )
+
+    run_id: int = Field(
+        foreign_key="run.id", index=True, description="Foreign key to the run"
+    )
+    run: Run = Relationship(back_populates="reports")
 
 
 class Sample(SQLModel, table=True):
@@ -289,6 +318,11 @@ class BaseMetrics(SQLModel):
         foreign_key="sample.id",
         description="Foreign key linking to the sample",
     )
+    report_id: int = Field(
+        foreign_key="multiqc_report.id",
+        index=True,
+        description="Foreign key linking to the MultiQC report the row came from",
+    )
 
     @classmethod
     def custom_transform(cls, df: pd.DataFrame) -> pd.DataFrame:
@@ -332,7 +366,7 @@ class BaseMetrics(SQLModel):
 
         numeric_fields = []
         # Exclude DB IDs as they are not metrics for plotting
-        excluded_fields = {"id", "sample_id", "run_id"}
+        excluded_fields = {"id", "sample_id", "run_id", "report_id"}
 
         for field_name, model_field in cls.model_fields.items():
             if field_name in excluded_fields:
@@ -397,6 +431,7 @@ class BaseMetrics(SQLModel):
         session: Session,
         df: pd.DataFrame,
         run: Run,
+        report: MultiQCReport,
         sample_map: dict[str, "Sample"] | None = None,
     ) -> int:
         """Processes a DataFrame and bulk-creates metric instances in the database."""
@@ -407,17 +442,18 @@ class BaseMetrics(SQLModel):
 
         records_to_create = []
         for record in df.to_dict(orient="records"):
-            metric_data = record.copy()
+            data = record.copy()
+            data["report_id"] = report.id
 
             if cls.metric_level == "sample":
                 sample_name = record.get(cls.index_col)
                 if not sample_name or not (sample := (sample_map or {}).get(str(sample_name))):
                     continue
-                metric_data["sample_id"] = sample.id
+                data["sample_id"] = sample.id
             elif cls.metric_level == "run":
-                metric_data["run_id"] = run.id
+                data["run_id"] = run.id
 
-            records_to_create.append(cls.model_validate(metric_data))
+            records_to_create.append(cls.model_validate(data))
 
         if records_to_create:
             session.add_all(records_to_create)

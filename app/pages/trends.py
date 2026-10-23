@@ -6,6 +6,7 @@ from dash import Input, Output, State, callback, dcc, html, no_update
 
 from app.components import (
     create_plot_page_layout,
+    create_plot_warnings,
     create_sample_filter_control,
     create_warning_figure,
 )
@@ -14,6 +15,7 @@ from app.utils import register_hover_callbacks
 from data.plots.trends import create_trends_figure
 from data.queries.general import get_assay_names, get_available_tools
 from data.queries.trends import get_trends_data
+from data.queries.warnings import get_plot_warnings
 from data.utils.model_utils import get_metric_models, get_plot_grouping_options
 
 dash.register_page(__name__, path="/trends", name="Metric Trends")
@@ -97,7 +99,11 @@ layout = html.Div(
     [
         create_sample_filter_control(),
         create_plot_page_layout(
-            controls, "trends-plot", "trends-hover-data-box", "Metric Trends Over Time"
+            controls,
+            "trends-plot",
+            "trends-hover-data-box",
+            "Metric Trends Over Time",
+            warnings_id="trends-warnings",
         ),
     ]
 )
@@ -199,6 +205,7 @@ def populate_grouping_options(tool_name):
 
 @callback(
     Output("trends-plot", "figure"),
+    Output("trends-warnings", "children"),
     [
         Input("assay-dropdown", "value"),
         Input("tool-dropdown", "value"),
@@ -226,10 +233,13 @@ def update_trends_plot(
     num_runs,
     sample_filter,
 ):
-    """Updates the main plot based on user selections."""
+    """Updates the main plot and its warnings based on user selections."""
     if not all([assay_names, tool_name, metric_names]):
-        return create_warning_figure(
-            "Please select at least one assay, a tool, and a metric to plot."
+        return (
+            create_warning_figure(
+                "Please select at least one assay, a tool, and a metric to plot."
+            ),
+            [],
         )
 
     is_multi_metric = len(metric_names) > 1
@@ -248,13 +258,17 @@ def update_trends_plot(
             color_by,
             symbol_by,
         )
+        warnings = get_plot_warnings(session, df, tool_model, num_runs)
 
     if df.empty:
-        return create_warning_figure(
-            f"No data found for the selected metrics in the selected assays."
+        return (
+            create_warning_figure(
+                "No data found for the selected metrics in the selected assays."
+            ),
+            [],
         )
 
-    return create_trends_figure(
+    figure = create_trends_figure(
         df,
         tool_name,
         metric_names,
@@ -266,3 +280,4 @@ def update_trends_plot(
         marker_size,
         is_run_level,
     )
+    return figure, create_plot_warnings(warnings)

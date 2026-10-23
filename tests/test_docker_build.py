@@ -79,7 +79,7 @@ def test_excluded_from_build_context(path):
         "data/config.py",
         "data/models/reports.py",
         "alembic/env.py",
-        "alembic/versions/f67693ee953b_initial_migration.py",
+        "alembic/versions/48175ebe7f29_baseline.py",
         "alembic.ini",
         "requirements.txt",
         "Dockerfile",

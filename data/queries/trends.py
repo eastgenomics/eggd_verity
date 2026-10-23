@@ -21,8 +21,8 @@ def get_trends_data(
     """
     is_run_level = tool_model.metric_level == "run"
 
-    columns_to_select = [Run.date, Run.run_folder]
-    df_cols = ["date", "run_folder"]
+    columns_to_select = [Run.date, Run.run_folder, Run.project_name]
+    df_cols = ["date", "run_folder", "project_name"]
 
     if not is_run_level:
         columns_to_select.append(Sample.name.label("sample_name"))
@@ -88,7 +88,7 @@ def get_trends_data(
         return pd.DataFrame(columns=df_cols), grouping_args
 
     df = pd.DataFrame(results, columns=df_cols)
-    df = df.sort_values(["date", "run_folder"], ascending=True)
+    df = df.sort_values(["date", "project_name"], ascending=True)
     df["date"] = pd.to_datetime(df["date"]).dt.date
 
     df = format_categorical_columns(df, color_by, symbol_by, grouping_args)

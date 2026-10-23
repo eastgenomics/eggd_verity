@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from data.models.choices import SexKaryotype
 from data.models.gen_stats import GenStats
 from data.models.reports import Assay, Run, Sample
+from tests.factories import add_report, run_identity
 from data.utils.sample import (
     clean_sample_name,
     extract_run_samples_metadata,
@@ -183,7 +184,7 @@ def test_get_or_create_run_samples(session: Session):
         run_folder="RUN_TSOD_001",
         date=datetime(2026, 1, 1),
         sequencer_id="A01303",
-        source="project-111111111111111111111111:file-111111111111111111111111",
+        **run_identity(),
         assay_id=assay.id,
     )
     session.add(run)
@@ -231,7 +232,7 @@ def test_bulk_create_from_df_filters_multiplex_samples(session: Session):
         run_folder="RUN_TSOD_002",
         date=datetime(2026, 1, 1),
         sequencer_id="A01303",
-        source="project-333333333333333333333333:file-333333333333333333333333",
+        **run_identity(),
         assay_id=assay.id,
     )
     session.add(run)
@@ -261,6 +262,7 @@ def test_bulk_create_from_df_filters_multiplex_samples(session: Session):
         session=session,
         df=df,
         run=run,
+        report=add_report(session, run),
         sample_map=sample_map,
     )
 
@@ -273,6 +275,7 @@ def test_bulk_create_from_df_filters_multiplex_samples(session: Session):
 
 def test_sample_categorical_fields():
     cat_fields = Sample.categorical_fields
-    assert "sample_number" in cat_fields
+    assert "batch" in cat_fields
     assert "well_col" in cat_fields
     assert "well_row" in cat_fields
+    assert "sex" in cat_fields

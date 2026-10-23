@@ -179,7 +179,7 @@ def get_project_metadata(project_id: str, file_id: str) -> dict:
         date = pd.to_datetime(project.created, unit="ms")
 
     return {
-        "source": f"{project_id}:{file_id}",
+        "project_name": name,
         "run_folder": "_".join(parts[1:-1]),
         "date": date,
         "sequencer_id": parts[2],

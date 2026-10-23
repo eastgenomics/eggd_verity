@@ -8,22 +8,12 @@ This project uses [Alembic](https://alembic.sqlalchemy.org/) to manage database 
 
 ### Initial Setup
 
-Before running the pipeline for the first time, you must initialize the database with Alembic.
+The migrations start from a single baseline revision that creates every table. To build a new database, apply it:
 
-1.  **Generate the initial migration script:**
-    This command will inspect models and create the first revision script to create all tables.
+```bash
+alembic upgrade head
+```
 
-    ```bash
-    alembic revision --autogenerate -m "Initial migration"
-    ```
-
-2.  **Apply the migration:**
-    This command applies the revision script to the database, creating all the tables.
-
-    ```bash
-    alembic upgrade head
-    ```
- 
 The database (by default `data/verity_db.sqlite3`; see *Database Configuration* in the main README to use another file or PostgreSQL) will be created, and you can now run the ETL pipeline.
 
 ### Future Schema Changes
@@ -43,6 +33,17 @@ Whenever a change is made to a `SQLModel` class in the `data/models/` directory 
     ```bash
     alembic upgrade head
    ```
+
+## Removing a duplicate MultiQC report
+
+When a project has more than one MultiQC report holding the same samples (for example a rerun), the plot pages show a warning with the report file ids. Remove the unwanted report with:
+
+```bash
+python -m data.manager.remove_data_source file-XXXX                  # dry run, prints what would be deleted
+python -m data.manager.remove_data_source file-XXXX --dry_run=False  # delete
+```
+
+This deletes the report's metric rows, then samples that no longer have any metrics, then the run if it has no reports left. The pipeline loads any live report that is not in the database, so a removed report comes back if its project is scanned again (for example while it is still inside the `created_after` window). Remove it after the project has left the window, or remove the unwamted file from the DNAnexus project.
 
 ## Running the ETL Pipeline
 
@@ -73,8 +74,9 @@ python -m data.pipeline [OPTIONS]
   Useful for testing specific datasets or updating a single run.
 
 - **Run on recent projects:**  
-  `python -m data.pipeline --created_after="-30d"`  
-  Scans only projects created in the last 30 days. This is the recommended flag for daily cron jobs to reduce API overhead.
+  `python -m data.pipeline --created_after="-2w"`  
+  Scans only projects created in the last 2 weeks. This is the recommended flag for daily cron jobs to reduce API overhead.
+  Also accepts `d` eg `--created_after="-14d"`and `h` eg `--created_after="-48h"`  for days and hours respectively.
 
 - **Run on a random sample:**  
   `python -m data.pipeline --sample_size=10`  

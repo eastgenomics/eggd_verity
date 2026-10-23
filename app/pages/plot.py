@@ -4,12 +4,13 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import Input, Output, State, callback, dcc, html, no_update
 
-from app.components import create_warning_figure
+from app.components import create_plot_warnings, create_warning_figure
 from app.db import get_session
 from app.utils import register_hover_callbacks
 from data.plots.raincloud import create_raincloud_figure
 from data.queries.general import get_assay_names, get_available_tools
 from data.queries.raincloud import get_raincloud_data
+from data.queries.warnings import get_plot_warnings
 from data.utils.model_utils import get_metric_models, get_plot_grouping_options
 
 dash.register_page(__name__, path="/plot", name="Raincloud Plot")
@@ -148,6 +149,7 @@ def create_plot_page_layout(controls_component, plot_id, hover_data_box_id, titl
                 align="center",
                 className="mb-1",
             ),
+            html.Div(id="plot-warnings"),
             dbc.Row(
                 [
                     dbc.Col(
@@ -238,8 +240,14 @@ def populate_grouping_options(tool_name):
     return formatted_options
 
 
+def _warning_only(message: str):
+    """A warning figure in place of the plot, with no plot warnings."""
+    return create_warning_figure(message), []
+
+
 @callback(
     Output("raincloud-plot", "figure"),
+    Output("plot-warnings", "children"),
     [
         Input("plot-assay-dropdown", "value"),
         Input("plot-tool-dropdown", "value"),
@@ -261,9 +269,9 @@ def update_raincloud_plot(
     violin_side,
     plot_components,
 ):
-    """Updates the raincloud plot based on user selections."""
+    """Updates the raincloud plot and its warnings based on user selections."""
     if not all([assay_names, tool_name, metric_name]):
-        return create_warning_figure(
+        return _warning_only(
             "Please select at least one assay, a tool, and a metric to plot."
         )
 
@@ -278,9 +286,10 @@ def update_raincloud_plot(
             num_runs,
             color_by,
         )
+        warnings = get_plot_warnings(session, df, tool_model, num_runs)
 
     if df.empty:
-        return create_warning_figure(
+        return _warning_only(
             f"No data found for the selected metrics in the selected assays."
         )
 
@@ -291,11 +300,11 @@ def update_raincloud_plot(
                 df["sample_name"].str.contains(sample_filter, regex=True, na=False)
             ]
         except Exception:
-            return create_warning_figure(
+            return _warning_only(
                 "Invalid regex pattern. Please correct the sample name filter."
             )
         if df.empty:
-            return create_warning_figure(
+            return _warning_only(
                 "No samples match the sample name filter."
             )
 
@@ -304,7 +313,7 @@ def update_raincloud_plot(
         model_name, field_name = color_by.split(".")
         color_label = f"{model_name.title()}: {field_name.replace('_', ' ').title()}"
 
-    return create_raincloud_figure(
+    figure = create_raincloud_figure(
         df,
         tool_name,
         metric_name,
@@ -315,6 +324,7 @@ def update_raincloud_plot(
         color_label,
         assay_names,
     )
+    return figure, create_plot_warnings(warnings)
 
 
 def layout(
