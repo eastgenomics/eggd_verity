@@ -128,6 +128,20 @@ dx upload verity_docker_image.tar.gz   # only when the code changed
 dx upload verity_db.tar.gz             # whenever the data changed
 ```
 
+### Scripts for the DNAnexus dev project
+
+Two scripts automate the frequent steps when Verity runs as the `eggd_verity`
+HTTP applet on DNAnexus:
+
+- `scripts/update_verity_db.sh` runs the ETL pipeline (`--created_after=-2w` by
+  default), archives the database and uploads the archive.
+- `scripts/run_verity.sh` finds the newest image and database archive in the
+  project and launches the applet with them.
+
+They assume the applet is in the project and takes `image` and `data` inputs.
+Set `DEV_PROJECT` in each script, or pass `-p`. See
+[docs/dnanexus.md](docs/dnanexus.md) for details.
+
 ## Running the Application
 
 Inside the container the database is read from `/db/verity_db.sqlite3`
